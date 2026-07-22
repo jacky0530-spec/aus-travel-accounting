@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>澳洲旅遊調度與發票管理系統 - 安全版</title>
+    <title>澳洲旅遊調度與發票管理系統 - 寫入修正版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -512,6 +512,48 @@
     const SUPABASE_URL = "https://ohnedzeglswvrcrzasiq.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_F6algA8-eFCJubSGC58pFg_jCbV86Kz";
     const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    let currentAccessToken = '';
+
+    const withTimeout = (promise, milliseconds, label = '作業') => {
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`${label}逾時，請重新整理後確認資料是否已完成。`)), milliseconds);
+        });
+        return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    };
+
+    const callRpcDirect = async (functionName, body, timeoutMs = 20000) => {
+        if (!currentAccessToken) throw new Error('登入憑證尚未就緒，請重新登入。');
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_PUBLISHABLE_KEY,
+                    'Authorization': `Bearer ${currentAccessToken}`
+                },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            const text = await response.text();
+            let result = null;
+            if (text) {
+                try { result = JSON.parse(text); } catch { result = text; }
+            }
+            if (!response.ok) {
+                const message = result?.message || result?.error_description || result?.hint || text || `HTTP ${response.status}`;
+                throw new Error(message);
+            }
+            return result;
+        } catch (error) {
+            if (error?.name === 'AbortError') throw new Error('資料庫連線超過 20 秒，已中止本次寫入；請重新整理確認後再操作。');
+            throw error;
+        } finally {
+            clearTimeout(timer);
+        }
+    };
 
     window.currentTab = 'dashboard';
     window.allOrders = [];
@@ -540,16 +582,8 @@
         window.renderUI?.();
     };
 
-    const subscribeRealtime = () => {
-        if (ordersChannel) supabase.removeChannel(ordersChannel);
-        if (eventsChannel) supabase.removeChannel(eventsChannel);
-        ordersChannel = supabase.channel('travel-orders-v2')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadAllData)
-            .subscribe();
-        eventsChannel = supabase.channel('travel-events-v2')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'order_events' }, loadAllData)
-            .subscribe();
-    };
+    // 本系統採「完成操作後主動重載」，避免 Realtime 異常影響寫入流程。
+    const subscribeRealtime = () => {};
 
     const showLoggedOut = () => {
         document.getElementById('loginScreen').classList.remove('hidden');
@@ -570,18 +604,32 @@
         document.getElementById('mainApp').classList.remove('hidden');
         document.getElementById('statusText').innerText = `已登入: ${user.email} (${access.role}) 🟢`;
         document.getElementById('statusText').classList.replace('text-slate-500', 'text-emerald-600');
-        await loadAllData();
-        subscribeRealtime();
+        await withTimeout(loadAllData(), 15000, '載入訂單資料');
     };
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session?.user) await showLoggedIn(session.user);
-        else showLoggedOut();
-    });
+    let authUiSequence = 0;
+    const scheduleAuthUi = (session) => {
+        currentAccessToken = session?.access_token || '';
+        const sequence = ++authUiSequence;
+        // onAuthStateChange 回呼必須立即結束；Supabase 查詢延後到下一個事件循環，避免 Auth lock 死鎖。
+        setTimeout(async () => {
+            if (sequence !== authUiSequence) return;
+            try {
+                if (session?.user) await showLoggedIn(session.user);
+                else showLoggedOut();
+            } catch (error) {
+                console.error('登入狀態處理失敗', error);
+                showLoggedOut();
+                const errObj = document.getElementById('loginError');
+                errObj.innerText = `系統初始化失敗：${error?.message || '請重新整理後再試'}`;
+                errObj.classList.remove('hidden');
+            }
+        }, 0);
+    };
 
-    const { data: initialSession } = await supabase.auth.getSession();
-    if (initialSession.session?.user) await showLoggedIn(initialSession.session.user);
-    else showLoggedOut();
+    supabase.auth.onAuthStateChange((_event, session) => {
+        scheduleAuthUi(session);
+    });
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
         const email = document.getElementById('loginEmail').value.trim();
@@ -1024,9 +1072,10 @@
     };
 
     const createOrderWithUniqueNumber = async (orderData) => {
-        const { data, error } = await supabase.rpc('create_order', { p_order: orderData });
-        if (error) throw error;
-        return data;
+        const payload = { ...orderData };
+        delete payload.order_number;
+        delete payload.timestamp;
+        return await callRpcDirect('create_order', { p_order: payload }, 20000);
     };
 
     const updateOrder = async (id, changes) => {
@@ -1066,11 +1115,20 @@
             }
 
             saveSucceeded = true;
+            try {
+                await withTimeout(loadAllData(), 12000, '重新整理訂單清單');
+            } catch (refreshError) {
+                console.warn('訂單已寫入，但清單重新整理失敗', refreshError);
+            }
             alert(`訂單已儲存：${savedOrderNumber}`);
         } catch (e) {
             console.error(e);
-            if ((e?.message || '').includes('DAILY_SEQUENCE_EXCEEDED')) alert('今日訂單流水號已達 999 筆，請聯絡系統管理者調整編碼規則。');
-            else alert(`寫入失敗：${e?.message || '請確認登入與資料權限'}`);
+            const message = e?.message || '';
+            if (message.includes('DAILY_SEQUENCE_EXCEEDED')) alert('今日訂單流水號已達 999 筆，請聯絡系統管理者調整編碼規則。');
+            else if (message.includes('逾時') || message.includes('超過 20 秒')) alert(`${message}
+
+請先重新整理頁面並查看訂單清單，確認未新增後再送出，避免重複訂單。`);
+            else alert(`寫入失敗：${message || '請確認登入與資料權限'}`);
         } finally {
             if (saveSucceeded) {
                 document.getElementById('confirmModal').classList.add('hidden');
@@ -1083,19 +1141,31 @@
 
     window.deleteOrder = async (id) => {
         if (!confirm('確定要刪除這筆訂單嗎？')) return;
-        const { error } = await supabase.from('orders').delete().eq('id', id);
-        if (error) alert(`刪除失敗：${error.message}`);
+        try {
+            const { error } = await withTimeout(supabase.from('orders').delete().eq('id', id), 15000, '刪除訂單');
+            if (error) throw error;
+            await loadAllData();
+        } catch (error) { alert(`刪除失敗：${error?.message || '請稍後再試'}`); }
     };
     window.togglePayment = async (id, currentStatus) => {
-        const next = currentStatus === 'paid' ? 'unpaid' : 'paid';
-        await updateOrder(id, { payment_status: next, payment_date: next === 'paid' ? window.getTodayFormatted() : '' });
+        try {
+            const next = currentStatus === 'paid' ? 'unpaid' : 'paid';
+            await withTimeout(updateOrder(id, { payment_status: next, payment_date: next === 'paid' ? window.getTodayFormatted() : '' }), 15000, '更新收款狀態');
+            await loadAllData();
+        } catch (error) { alert(`更新失敗：${error?.message || '請稍後再試'}`); }
     };
     window.togglePayable = async (id, currentStatus) => {
-        const next = currentStatus === 'paid' ? 'unpaid' : 'paid';
-        await updateOrder(id, { payable_status: next, payable_paid_date: next === 'paid' ? window.getTodayFormatted() : '' });
+        try {
+            const next = currentStatus === 'paid' ? 'unpaid' : 'paid';
+            await withTimeout(updateOrder(id, { payable_status: next, payable_paid_date: next === 'paid' ? window.getTodayFormatted() : '' }), 15000, '更新付款狀態');
+            await loadAllData();
+        } catch (error) { alert(`更新失敗：${error?.message || '請稍後再試'}`); }
     };
     window.toggleCase = async (id, currentStatus) => {
-        await updateOrder(id, { case_status: currentStatus === 'closed' ? 'open' : 'closed' });
+        try {
+            await withTimeout(updateOrder(id, { case_status: currentStatus === 'closed' ? 'open' : 'closed' }), 15000, '更新結案狀態');
+            await loadAllData();
+        } catch (error) { alert(`更新失敗：${error?.message || '請稍後再試'}`); }
     };
 
     window.editOrder = (id) => {
@@ -1308,15 +1378,15 @@
         btn.disabled = true;
         btn.innerText = '處理中...';
         try {
-            const { error } = await supabase.rpc('record_order_adjustment', {
+            await callRpcDirect('record_order_adjustment', {
                 p_order_id: item.id,
                 p_action_type: type,
                 p_action_date: actionDate,
                 p_amount: refundAmount,
                 p_reason: reason,
                 p_note: note
-            });
-            if (error) throw error;
+            }, 20000);
+            await withTimeout(loadAllData(), 12000, '重新整理異動資料');
 
             alert(type === 'refund' ? '退款紀錄已新增。' : '訂單已標記為取消出團。');
             document.getElementById('adjustmentForm').reset();
