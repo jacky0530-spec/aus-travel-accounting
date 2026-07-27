@@ -1,1671 +1,710 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>澳洲旅遊調度與發票管理系統 - 寫入修正版</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; }
-        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .order-card .action-btns { opacity: 0; transition: opacity 0.2s; }
-        .order-card:hover .action-btns { opacity: 1; }
-        .nav-btn.active { border-bottom: 4px solid #2563eb; color: #1e40af; font-weight: bold; background-color: #eff6ff; }
-        @media print {
-            .no-print { display: none !important; }
-            body { background-color: white; padding: 0; }
-            .card-shadow { box-shadow: none !important; border: 1px solid #e2e8f0; }
-            .report-container { padding: 10px; }
-            table { font-size: 12px; }
-            th, td { border-bottom: 1px solid #e2e8f0; }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>澳洲旅遊訂單與會計系統 V3</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans TC', sans-serif; }
+    .thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .thin-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .section-title { display:flex; align-items:center; justify-content:space-between; gap:.75rem; font-weight:900; color:#0f172a; }
+    .field-label { display:block; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:.25rem; }
+    .field { width:100%; border:1px solid #cbd5e1; border-radius:.6rem; padding:.55rem .65rem; font-size:.82rem; background:#fff; }
+    .field:focus { outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+    .readonly { background:#f8fafc; color:#334155; }
+    details > summary { cursor:pointer; list-style:none; }
+    details > summary::-webkit-details-marker { display:none; }
+    .metric { border:1px solid #e2e8f0; background:#fff; border-radius:.85rem; padding:.8rem; }
+    .table-head th { position:sticky; top:0; z-index:5; background:#f8fafc; }
+    @media print {
+      .no-print { display:none !important; }
+      body { background:#fff !important; }
+      #reportOutput { box-shadow:none !important; border:none !important; }
+    }
+  </style>
 </head>
-<body class="text-slate-800">
+<body class="bg-slate-100 text-slate-800 min-h-screen">
 
-    <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-slate-800 absolute inset-0 z-50">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
-            <h2 class="text-2xl font-bold text-center text-slate-800 mb-6">🇦🇺 旅遊調度系統登入</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">帳號 (Email)</label>
-                    <input type="email" id="loginEmail" class="mt-1 block w-full p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">密碼 (Password)</label>
-                    <input type="password" id="loginPassword" class="mt-1 block w-full p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div class="flex items-center mt-2">
-                    <input type="checkbox" id="rememberMe" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded">
-                    <label for="rememberMe" class="ml-2 block text-sm text-slate-700 font-bold cursor-pointer">記住帳號</label>
-                </div>
-                <button id="loginBtn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition mt-4">登入系統</button>
-                <button id="registerBtn" type="button" class="w-full bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-200 transition">首次使用／建立帳號</button>
-                <p class="text-[11px] text-slate-500 leading-relaxed">新資料庫的第一個註冊帳號會自動成為管理員；之後註冊的帳號需由管理員啟用。</p>
-                <p id="loginError" class="text-red-500 text-sm text-center font-bold hidden"></p>
-            </div>
-        </div>
+<div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 p-4">
+  <div class="w-full max-w-sm rounded-2xl bg-white p-7 shadow-2xl">
+    <div class="text-center mb-6">
+      <div class="text-4xl">🇦🇺</div>
+      <h1 class="text-2xl font-black mt-2">旅遊訂單與會計系統</h1>
+      <p class="text-xs text-slate-500 mt-1">整合輸入、訂單總覽與管理報表</p>
     </div>
-
-    <div id="mainApp" class="hidden p-6 max-w-7xl mx-auto relative">
-        <header class="mb-6 flex justify-between items-end no-print">
-            <div>
-                <h1 class="text-3xl font-bold">澳洲旅遊業務總覽</h1>
-                <p class="text-slate-500 mt-1 text-sm font-bold" id="statusText">資料庫連線中...</p>
-            </div>
-            <button id="logoutBtn" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold hover:bg-red-500 hover:text-white transition shadow-sm">登出系統</button>
-        </header>
-
-        <nav class="flex flex-wrap border-b border-slate-300 mb-6 bg-white rounded-t-lg overflow-hidden card-shadow no-print">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-btn active flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">📊 首頁總覽</button>
-            <button onclick="switchTab('Mode_A')" id="tab-Mode_A" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">📦 自營接單 (A)</button>
-            <button onclick="switchTab('Mode_B')" id="tab-Mode_B" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">📤 轉給同業 (B)</button>
-            <button onclick="switchTab('Mode_C')" id="tab-Mode_C" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">📥 同業轉入 (C)</button>
-            <button onclick="switchTab('Mode_D')" id="tab-Mode_D" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">🎟️ 門票飯店 (D)</button>
-            <button onclick="switchTab('report')" id="tab-report" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">📈 出發報表</button>
-            <button onclick="switchTab('profit-loss')" id="tab-profit-loss" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[100px]">💰 會計損益／帳款</button>
-            <button onclick="switchTab('cancellations')" id="tab-cancellations" class="nav-btn flex-1 py-3 text-center text-slate-600 hover:bg-slate-50 transition min-w-[120px]">↩️ 取消／退款</button>
-        </nav>
-
-        <div id="inputSection" class="no-print">
-            <section class="mb-6 bg-blue-50 p-5 rounded-xl border border-blue-200 shadow-sm">
-                <h2 class="text-base font-bold text-blue-800 mb-2">⚡ 智慧文字解析 (貼上 LINE 訂單)</h2>
-                <textarea id="rawOrderText" rows="3" class="w-full p-2 border border-blue-300 rounded-md text-sm focus:ring-blue-500" placeholder="在此貼上 LINE 群組的原始文字訂單..."></textarea>
-                <div id="parseResult" class="hidden mt-2 p-2 rounded-md text-xs whitespace-pre-wrap"></div>
-                <div class="mt-2 flex justify-between items-center gap-3">
-                    <p class="text-xs text-blue-700">建議使用「欄位名稱：內容」格式；日期請使用 YYYY-MM-DD。</p>
-                    <button type="button" id="parseBtn" class="bg-blue-600 text-white px-5 py-1.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition">自動解析欄位 ↓</button>
-                </div>
-            </section>
-
-            <section class="mb-8 bg-white p-5 rounded-xl border border-slate-200 card-shadow transition-colors duration-300" id="formSection">
-                <h2 id="formTitle" class="text-lg font-bold text-slate-800 mb-3">🆕 快速錄入新訂單</h2>
-                <form id="orderForm" class="grid grid-cols-1 md:grid-cols-8 gap-3">
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">經營模式</label>
-                        <select id="mode" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-slate-50 text-sm" required>
-                            <option value="Mode_A">Mode A: 自營自出</option>
-                            <option value="Mode_B">Mode B: 轉給同業</option>
-                            <option value="Mode_C">Mode C: 同業轉入</option>
-                            <option value="Mode_D">Mode D: 門票 飯店販售</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">產品分類</label>
-                        <select id="category" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-slate-50 text-sm font-bold text-purple-700">
-                            <option value="">-- 無特定分類 --</option>
-                            <option value="接送機">✈️ 接送機</option>
-                            <option value="一日遊">🚗 一日遊</option>
-                            <option value="多日遊">🚌 多日遊</option>
-                            <option value="包車">🚘 包車</option>
-                            <option value="門票">🎟️ 門票</option>
-                            <option value="飯店販售">🏨 飯店販售</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">系統訂單編號</label>
-                        <input type="text" id="orderNumber" value="儲存時自動產生" class="mt-1 block w-full p-2 border border-sky-300 rounded-md bg-sky-50 text-sm font-bold text-sky-800" readonly>
-                        <p class="mt-1 text-[10px] text-slate-500">格式：AU＋西元年月日＋三碼流水號</p>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">旅客姓名／外部單號</label>
-                        <input type="text" id="customer" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-slate-700">接單日期</label>
-                        <input type="date" id="orderDate" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-sky-50 focus:bg-white text-sm font-bold text-slate-800" required>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-slate-700">出團日期</label>
-                        <input type="date" id="departureTime" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-yellow-50 focus:bg-white text-sm font-bold text-slate-800" required>
-                    </div>
-                    
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">幣別</label>
-                        <select id="currency" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-slate-50 text-sm font-bold text-blue-700" onchange="handleCurrencyChange()">
-                            <option value="AUD">🇦🇺 澳幣 (AUD)</option>
-                            <option value="CNY">🇨🇳 人民幣 (CNY)</option>
-                            <option value="TWD">🇹🇼 台幣 (TWD)</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">單價</label>
-                        <input type="number" step="0.01" id="unitPrice" placeholder="有單價會自動乘" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm">
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-slate-700">人數 (Pax)</label>
-                        <input type="number" id="pax" value="1" min="1" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">總額</label>
-                        <input type="number" step="0.01" id="amount" class="mt-1 block w-full p-2 border border-blue-400 bg-blue-50 font-bold rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-slate-700">匯率</label>
-                        <input type="number" step="0.001" id="fxRate" value="23" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm" required>
-                    </div>
-
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-red-800">司機成本</label>
-                        <input type="number" step="0.01" id="costDriver" value="0" class="mt-1 block w-full p-2 border border-red-200 bg-red-50 text-red-700 font-bold rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-red-800">油錢成本</label>
-                        <input type="number" step="0.01" id="costFuel" value="0" class="mt-1 block w-full p-2 border border-red-200 bg-red-50 text-red-700 font-bold rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-red-800">門票成本</label>
-                        <input type="number" step="0.01" id="costTicket" value="0" class="mt-1 block w-full p-2 border border-red-200 bg-red-50 text-red-700 font-bold rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">收款狀態</label>
-                        <select id="paymentStatus" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-slate-50 text-sm" required>
-                            <option value="unpaid">❌ 未收款 (Pending)</option>
-                            <option value="paid">✅ 已收款 (Paid)</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-xs font-medium text-slate-700">結案狀態</label>
-                        <select id="caseStatus" class="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-slate-50 text-sm" required>
-                            <option value="open">⏳ 未結案 (Open)</option>
-                            <option value="closed">📁 已結案 (Closed)</option>
-                        </select>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-emerald-800">應收帳款日期</label>
-                        <input type="date" id="receivableDueDate" class="mt-1 block w-full p-2 border border-emerald-200 bg-emerald-50 rounded-md text-sm font-bold" required>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-emerald-800">實際收款日期</label>
-                        <input type="date" id="paymentDate" class="mt-1 block w-full p-2 border border-emerald-200 rounded-md text-sm">
-                        <p class="mt-1 text-[10px] text-slate-500">未收款可留白</p>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-red-800">應付帳款日期</label>
-                        <input type="date" id="payableDueDate" class="mt-1 block w-full p-2 border border-red-200 bg-red-50 rounded-md text-sm font-bold" required>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-red-800">成本付款</label>
-                        <select id="payableStatus" class="mt-1 block w-full p-2 border border-red-200 bg-red-50 rounded-md text-sm font-bold" required>
-                            <option value="unpaid">未付</option>
-                            <option value="paid">已付</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-xs font-medium text-red-800">實付日期</label>
-                        <input type="date" id="payablePaidDate" class="mt-1 block w-full p-2 border border-red-200 rounded-md text-sm">
-                    </div>
-
-                    <div class="md:col-span-5">
-                        <label class="block text-xs font-medium text-slate-700">行程詳情 / 備註 (包含金流)</label>
-                        <textarea id="note" rows="2" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm"></textarea>
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-xs font-medium text-slate-700">特殊資訊 (體重/裝備/房型等)</label>
-                        <input type="text" id="specialInfo" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm">
-                    </div>
-                    
-                    <div class="md:col-span-8 flex justify-end mt-1 space-x-3">
-                        <button type="button" id="cancelEditBtn" class="hidden px-5 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 text-sm">取消修改</button>
-                        <button type="submit" id="formSubmitBtn" class="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition text-sm">預覽並準備存檔</button>
-                    </div>
-                </form>
-            </section>
-        </div>
-
-        <main id="view-dashboard" class="view-section grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 no-print">
-            <section class="bg-white rounded-xl border border-emerald-200 overflow-hidden shadow-sm flex flex-col max-h-[800px]">
-                <div class="bg-emerald-50 p-3 border-b border-emerald-100 flex-shrink-0"><h3 class="font-bold text-emerald-800">📦 自營接單 (A)</h3></div>
-                <div id="dash-mode-a" class="p-4 space-y-4 overflow-y-auto no-scrollbar flex-grow"></div>
-            </section>
-            <section class="bg-white rounded-xl border border-orange-200 overflow-hidden shadow-sm flex flex-col max-h-[800px]">
-                <div class="bg-orange-50 p-3 border-b border-orange-100 flex-shrink-0"><h3 class="font-bold text-orange-800">📤 轉給同業 (B)</h3></div>
-                <div id="dash-mode-b" class="p-4 space-y-4 overflow-y-auto no-scrollbar flex-grow"></div>
-            </section>
-            <section class="bg-white rounded-xl border border-purple-200 overflow-hidden shadow-sm flex flex-col max-h-[800px]">
-                <div class="bg-purple-50 p-3 border-b border-purple-100 flex-shrink-0"><h3 class="font-bold text-purple-800">📥 同業轉入 (C)</h3></div>
-                <div id="dash-mode-c" class="p-4 space-y-4 overflow-y-auto no-scrollbar flex-grow"></div>
-            </section>
-            <section class="bg-white rounded-xl border border-blue-200 overflow-hidden shadow-sm flex flex-col max-h-[800px]">
-                <div class="bg-blue-50 p-3 border-b border-blue-100 flex-shrink-0"><h3 class="font-bold text-blue-800">🎟️ 門票 飯店販售 (D)</h3></div>
-                <div id="dash-mode-d" class="p-4 space-y-4 overflow-y-auto no-scrollbar flex-grow"></div>
-            </section>
-        </main>
-
-        <main id="view-single-mode" class="view-section hidden no-print">
-            <section class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <div class="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-slate-800" id="single-mode-title">模式列表</h3>
-                </div>
-                <div id="single-mode-list" class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-            </section>
-        </main>
-
-        <main id="view-report" class="view-section hidden">
-            <div class="flex flex-wrap gap-3 mb-4 items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm no-print">
-                <h3 class="font-bold text-slate-800 mr-4">⚙️ 報表設定</h3>
-                <select id="reportTimeType" class="p-2 border border-slate-300 rounded text-sm bg-slate-50" onchange="toggleDateInputs('report'); updateReportHeader('report'); renderUI()">
-                    <option value="all">顯示全部出團日期</option>
-                    <option value="month">📅 出發月報表</option>
-                    <option value="day">📆 出發日報表</option>
-                </select>
-                <input type="month" id="reportMonthPicker" class="hidden p-2 border border-slate-300 rounded text-sm" onchange="updateReportHeader('report'); renderUI()">
-                <input type="date" id="reportDatePicker" class="hidden p-2 border border-slate-300 rounded text-sm" onchange="updateReportHeader('report'); renderUI()">
-                
-                <select id="reportModeFilter" class="p-2 border border-slate-300 rounded text-sm bg-slate-50 ml-auto" onchange="renderUI()">
-                    <option value="all">模式：全部</option>
-                    <option value="Mode_A">📦 自營接單 (A)</option>
-                    <option value="Mode_B">📤 轉給同業 (B)</option>
-                    <option value="Mode_C">📥 同業轉入 (C)</option>
-                    <option value="Mode_D">🎟️ 門票飯店 (D)</option>
-                </select>
-                <select id="reportFilter" class="p-2 border border-slate-300 rounded text-sm bg-slate-50" onchange="renderUI()">
-                    <option value="all">結案狀態：全部</option>
-                    <option value="open">⏳ 只顯示未結案</option>
-                    <option value="closed">📁 只顯示已結案</option>
-                </select>
-                <button onclick="window.print()" class="px-4 py-2 border border-slate-800 text-slate-800 font-bold rounded hover:bg-slate-100 text-sm transition">🖨️ 列印</button>
-                <button onclick="exportToImage('report')" class="px-4 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 text-sm transition">📸 下載圖片</button>
-            </div>
-
-            <div id="report-container" class="bg-white rounded-xl overflow-hidden p-2 report-container">
-                <h2 id="reportHeaderTitle" class="text-2xl font-bold text-center text-slate-800 py-4 hidden print:block">澳洲旅遊業務出團報表</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 border-l-4 border-l-blue-500">
-                        <p class="text-sm text-slate-500 mb-1">符合條件訂單數</p>
-                        <h3 class="text-3xl font-bold text-slate-800" id="rep-total-count">0</h3>
-                    </div>
-                    <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 border-l-4 border-l-red-500">
-                        <p class="text-sm text-slate-500 mb-1">❌ 未收款總額 (營收)</p>
-                        <h3 class="text-3xl font-bold text-red-600" id="rep-unpaid-sum">NT$ 0</h3>
-                    </div>
-                    <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 border-l-4 border-l-emerald-500">
-                        <p class="text-sm text-slate-500 mb-1">✅ 已收款總額 (營收)</p>
-                        <h3 class="text-3xl font-bold text-emerald-600" id="rep-paid-sum">NT$ 0</h3>
-                    </div>
-                </div>
-                <div class="border border-slate-200 rounded-lg overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-slate-800 text-white">
-                                <th class="p-3">雙狀態</th>
-                                <th class="p-3">模式/分類</th>
-                                <th class="p-3">訂單編號／旅客</th>
-                                <th class="p-3">接單／出團日期</th>
-                                <th class="p-3 text-right">金額明細 (含成本)</th>
-                                <th class="p-3 text-center no-print">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="report-table-body" class="divide-y divide-slate-200 bg-white"></tbody>
-                    </table>
-                </div>
-            </div>
-        </main>
-
-        <main id="view-profit-loss" class="view-section hidden">
-            <div class="flex flex-wrap gap-3 mb-4 items-end bg-white p-4 rounded-xl border border-slate-200 shadow-sm no-print">
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">查詢起日</label>
-                    <input type="date" id="plStartDate" class="p-2 border border-slate-300 rounded text-sm" onchange="updateReportHeader('pl'); renderUI()">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">查詢迄日</label>
-                    <input type="date" id="plEndDate" class="p-2 border border-slate-300 rounded text-sm" onchange="updateReportHeader('pl'); renderUI()">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">明細日期依據</label>
-                    <select id="plDateBasis" class="p-2 border border-slate-300 rounded text-sm bg-slate-50" onchange="renderUI()">
-                        <option value="account">帳款到期日</option>
-                        <option value="departure">出團日期</option>
-                        <option value="cash">實際收付款／退款日</option>
-                        <option value="related">任一相關日期</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">經營模式</label>
-                    <select id="plModeFilter" class="p-2 border border-slate-300 rounded text-sm bg-slate-50" onchange="renderUI()">
-                        <option value="all">全部模式</option>
-                        <option value="Mode_A">📦 自營接單</option>
-                        <option value="Mode_B">📤 轉給同業</option>
-                        <option value="Mode_C">📥 同業轉入</option>
-                        <option value="Mode_D">🎟️ 門票飯店</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-600 mb-1">帳款篩選</label>
-                    <select id="plAccountFilter" class="p-2 border border-slate-300 rounded text-sm bg-slate-50" onchange="renderUI()">
-                        <option value="all">全部帳款</option>
-                        <option value="ar_unpaid">只看未收款</option>
-                        <option value="ap_unpaid">只看未付成本</option>
-                        <option value="settled">只看已收／已付</option>
-                        <option value="refund">有退款紀錄</option>
-                        <option value="cancelled">已取消訂單</option>
-                    </select>
-                </div>
-                <button onclick="setAccountingMonthRange()" class="px-3 py-2 border border-sky-300 text-sky-700 font-bold rounded hover:bg-sky-50 text-sm">本月</button>
-                <button onclick="exportAccountingCSV()" class="px-3 py-2 bg-emerald-600 text-white font-bold rounded hover:bg-emerald-700 text-sm">⬇️ 匯出 CSV</button>
-                <button onclick="window.print()" class="px-3 py-2 border border-slate-800 text-slate-800 font-bold rounded hover:bg-slate-100 text-sm">🖨️ 列印</button>
-                <button onclick="exportToImage('profit-loss')" class="px-3 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 text-sm">📸 圖片</button>
-            </div>
-
-            <div id="pl-container" class="bg-white rounded-xl overflow-hidden p-2 report-container">
-                <h2 id="plHeaderTitle" class="text-2xl font-bold text-center text-slate-800 py-4 hidden print:block">會計損益與帳款報表</h2>
-                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 no-print">
-                    帳款彙總依「應收／應付日期」計算；實收、實付與退款依實際異動日計算。舊訂單缺少會計日期時，暫以出團日替代並於明細標示「推估」。
-                </div>
-
-                <h3 class="font-bold text-slate-700 mb-2">📒 帳款與現金流</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
-                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200"><p class="text-xs text-emerald-700">區間應收帳款</p><h3 class="text-xl font-bold text-emerald-700" id="acct-ar">NT$ 0</h3></div>
-                    <div class="bg-green-50 p-3 rounded-xl border border-green-200"><p class="text-xs text-green-700">區間實際收款</p><h3 class="text-xl font-bold text-green-700" id="acct-received">NT$ 0</h3></div>
-                    <div class="bg-red-50 p-3 rounded-xl border border-red-200"><p class="text-xs text-red-700">區間應付帳款</p><h3 class="text-xl font-bold text-red-700" id="acct-ap">NT$ 0</h3></div>
-                    <div class="bg-orange-50 p-3 rounded-xl border border-orange-200"><p class="text-xs text-orange-700">區間實際付款</p><h3 class="text-xl font-bold text-orange-700" id="acct-paid">NT$ 0</h3></div>
-                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-200"><p class="text-xs text-rose-700">區間退款</p><h3 class="text-xl font-bold text-rose-700" id="acct-refund">NT$ 0</h3></div>
-                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-200"><p class="text-xs text-amber-700">取消訂單</p><h3 class="text-xl font-bold text-amber-700" id="acct-cancel-count">0 筆</h3></div>
-                    <div class="bg-pink-50 p-3 rounded-xl border border-pink-200"><p class="text-xs text-pink-700">取消後未退款餘額</p><h3 class="text-xl font-bold text-pink-700" id="acct-cancel-balance">NT$ 0</h3></div>
-                    <div class="bg-sky-50 p-3 rounded-xl border border-sky-200"><p class="text-xs text-sky-700">現金淨流入</p><h3 class="text-xl font-bold text-sky-700" id="acct-net-cash">NT$ 0</h3></div>
-                </div>
-
-                <h3 class="font-bold text-slate-700 mb-2">📊 出團區間損益（累計退款後）</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 border-l-4 border-l-blue-500"><p class="text-sm text-slate-500">淨營收</p><h3 class="text-2xl font-bold text-blue-600" id="pl-rev-sum">NT$ 0</h3></div>
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 border-l-4 border-l-red-500"><p class="text-sm text-slate-500">總成本</p><h3 class="text-2xl font-bold text-red-600" id="pl-cost-sum">NT$ 0</h3></div>
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 border-l-4 border-l-emerald-500"><p class="text-sm text-slate-500">淨損益</p><h3 class="text-2xl font-bold text-emerald-600" id="pl-profit-sum">NT$ 0</h3></div>
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 border-l-4 border-l-purple-500"><p class="text-sm text-slate-500">淨利率</p><h3 class="text-2xl font-bold text-purple-600" id="pl-margin">0%</h3></div>
-                </div>
-
-                <h3 class="font-bold text-slate-700 mb-2">訂單帳款明細</h3>
-                <div class="border border-slate-200 rounded-lg overflow-x-auto mb-6">
-                    <table class="w-full text-left border-collapse text-xs min-w-[1180px]">
-                        <thead><tr class="bg-slate-800 text-white">
-                            <th class="p-3">狀態／模式</th><th class="p-3">訂單／旅客</th><th class="p-3">重要日期</th>
-                            <th class="p-3 text-right">應收／實收</th><th class="p-3 text-right">應付／實付</th>
-                            <th class="p-3 text-right">退款／取消</th><th class="p-3 text-right">訂單淨損益</th>
-                        </tr></thead>
-                        <tbody id="profit-table-body" class="divide-y divide-slate-200 bg-white"></tbody>
-                    </table>
-                </div>
-
-                <h3 class="font-bold text-slate-700 mb-2">區間退款與取消異動</h3>
-                <div class="border border-slate-200 rounded-lg overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs min-w-[900px]">
-                        <thead><tr class="bg-rose-800 text-white">
-                            <th class="p-3">異動日期</th><th class="p-3">訂單編號</th><th class="p-3">旅客</th><th class="p-3">類型</th><th class="p-3 text-right">金額</th><th class="p-3">原因／備註</th>
-                        </tr></thead>
-                        <tbody id="accounting-event-table-body" class="divide-y divide-slate-200 bg-white"></tbody>
-                    </table>
-                </div>
-            </div>
-        </main>
-
-        <main id="view-cancellations" class="view-section hidden no-print">
-            <section class="bg-white rounded-xl border border-rose-200 overflow-hidden shadow-sm mb-6">
-                <div class="bg-rose-50 p-4 border-b border-rose-200">
-                    <h3 class="text-lg font-bold text-rose-800">↩️ 取消訂單／退款登錄</h3>
-                    <p class="text-xs text-rose-700 mt-1">保留原訂單並新增異動紀錄；不直接刪除財務資料。</p>
-                    <p class="text-[11px] text-slate-500 mt-1">舊資料若尚無正式訂單編號，請先至原訂單按「修改」並儲存，系統會自動補發編號。</p>
-                </div>
-                <form id="adjustmentForm" class="p-5 grid grid-cols-1 md:grid-cols-8 gap-4">
-                    <div class="md:col-span-4">
-                        <label class="block text-xs font-medium text-slate-700">選擇已成立訂單</label>
-                        <select id="adjustmentOrderId" class="mt-1 block w-full p-2.5 border border-slate-300 rounded-md bg-white text-sm" required>
-                            <option value="">-- 請選擇訂單編號 --</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">異動類型</label>
-                        <select id="adjustmentType" class="mt-1 block w-full p-2.5 border border-slate-300 rounded-md bg-slate-50 text-sm font-bold" required>
-                            <option value="refund">💸 新增退款</option>
-                            <option value="cancel_trip">🚫 取消出團</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">異動日期</label>
-                        <input type="date" id="adjustmentDate" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm" required>
-                    </div>
-
-                    <div id="selectedOrderSummary" class="md:col-span-8 hidden bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm"></div>
-
-                    <div id="refundAmountGroup" class="md:col-span-2">
-                        <label class="block text-xs font-medium text-slate-700">退款金額</label>
-                        <input type="number" min="0.01" step="0.01" id="refundAmount" class="mt-1 block w-full p-2 border border-rose-300 bg-rose-50 rounded-md text-sm font-bold">
-                        <p id="refundableHint" class="mt-1 text-[10px] text-slate-500"></p>
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-xs font-medium text-slate-700">原因</label>
-                        <input type="text" id="adjustmentReason" placeholder="例如：旅客取消、天候、重複付款" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm" required>
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-xs font-medium text-slate-700">備註</label>
-                        <input type="text" id="adjustmentNote" placeholder="退款方式、手續費、後續處理等" class="mt-1 block w-full p-2 border border-slate-300 rounded-md text-sm">
-                    </div>
-                    <div class="md:col-span-8 flex justify-end">
-                        <button type="submit" id="adjustmentSubmitBtn" class="bg-rose-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-rose-700 transition">確認新增異動</button>
-                    </div>
-                </form>
-            </section>
-
-            <section class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <div class="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-slate-800">📋 取消／退款紀錄</h3>
-                    <span id="adjustmentCount" class="text-xs font-bold text-slate-500">0 筆</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-slate-800 text-white">
-                                <th class="p-3">異動日期</th>
-                                <th class="p-3">訂單編號</th>
-                                <th class="p-3">旅客／出團日</th>
-                                <th class="p-3">類型</th>
-                                <th class="p-3 text-right">退款金額</th>
-                                <th class="p-3">原因／備註</th>
-                            </tr>
-                        </thead>
-                        <tbody id="adjustmentTableBody" class="divide-y divide-slate-200 bg-white"></tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
+    <div class="space-y-4">
+      <div><label class="field-label">帳號 Email</label><input id="loginEmail" type="email" class="field" autocomplete="username"></div>
+      <div><label class="field-label">密碼</label><input id="loginPassword" type="password" class="field" autocomplete="current-password"></div>
+      <label class="flex items-center gap-2 text-sm"><input id="rememberMe" type="checkbox" class="rounded"> 記住帳號</label>
+      <button id="loginBtn" class="w-full rounded-xl bg-blue-600 py-3 font-bold text-white hover:bg-blue-700">登入系統</button>
+      <button id="registerBtn" class="w-full rounded-xl bg-slate-100 py-2.5 font-bold text-slate-700 hover:bg-slate-200">首次使用／建立帳號</button>
+      <p id="loginError" class="hidden rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700"></p>
     </div>
+  </div>
+</div>
 
-    <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center backdrop-blur-sm no-print">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
-            <h2 class="text-xl font-bold text-slate-800 border-b pb-3 mb-4" id="modalTitle">確認訂單資訊</h2>
-            <div class="space-y-2 text-slate-700 text-sm">
-                <p><strong>訂單編號：</strong> <span id="modalOrderNumber" class="font-bold text-sky-700"></span></p>
-                <p><strong>模式與分類：</strong> <span id="modalMode" class="text-blue-600"></span> <span id="modalCategory" class="text-purple-600 font-bold"></span></p>
-                <p><strong>旅客／外部單號：</strong> <span id="modalCustomer"></span></p>
-                <p><strong>單價與人數：</strong> <span id="modalUnitPax" class="font-bold text-blue-600"></span></p>
-                <p><strong>接單日期：</strong> <span id="modalOrderDate" class="font-bold text-sky-600"></span></p>
-                <p><strong>出團日期：</strong> 🗓️ <span id="modalDeparture" class="font-bold text-orange-600"></span></p>
-                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
-                    <p><strong>總營收金額：</strong> <span id="modalAmount" class="font-bold text-lg text-slate-800"></span></p>
-                    <p class="text-red-600 text-xs"><strong>成本細目：</strong> <span id="modalCostBreakdown" class="font-bold"></span></p>
-                    <p class="text-red-700"><strong>總計成本：</strong> <span id="modalCost" class="font-bold text-lg"></span></p>
-                </div>
-                <p><strong>折合台幣：</strong> NT$ <span id="modalTwd" class="font-bold text-emerald-600 text-lg"></span></p>
-                <div class="flex space-x-4 mt-2">
-                    <p><strong>收款：</strong> <span id="modalPaymentStatus"></span></p>
-                    <p><strong>結案：</strong> <span id="modalCaseStatus"></span></p>
-                </div>
-                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-xs">
-                    <p><strong>應收／實收日：</strong> <span id="modalReceivableDates"></span></p>
-                    <p><strong>應付／實付日：</strong> <span id="modalPayableDates"></span></p>
-                </div>
-                <div class="bg-slate-100 p-2 rounded text-xs whitespace-pre-wrap max-h-24 overflow-y-auto mt-2" id="modalNote"></div>
-            </div>
-            <div class="mt-6 flex justify-end space-x-3">
-                <button type="button" id="cancelBtn" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">返回</button>
-                <button type="button" id="confirmSaveBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">確認並存入</button>
-            </div>
-        </div>
+<div id="app" class="hidden min-h-screen">
+  <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div>
+        <h1 class="text-xl font-black">澳洲旅遊訂單與會計系統 V3</h1>
+        <p id="statusText" class="text-xs font-bold text-emerald-600">登入中...</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button class="mainTab rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white" data-tab="orders">訂單作業</button>
+        <button class="mainTab rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700" data-tab="reports">會計報表</button>
+        <button class="mainTab rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700" data-tab="finance">其他帳務</button>
+        <button id="logoutBtn" class="rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100">登出</button>
+      </div>
     </div>
+  </header>
+
+  <main class="mx-auto max-w-[1800px] p-3 md:p-4">
+    <section id="tab-orders" class="tabPanel">
+      <div class="grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]">
+        <aside class="no-print xl:sticky xl:top-[78px] xl:max-h-[calc(100vh-92px)] xl:overflow-y-auto thin-scroll">
+          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h2 id="formHeading" class="text-lg font-black">新增訂單</h2>
+                  <p class="text-xs text-slate-500">左側輸入，右側即時查看訂單總覽</p>
+                </div>
+                <button id="resetOrderBtn" type="button" class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">清空</button>
+              </div>
+            </div>
+
+            <div class="border-b border-blue-100 bg-blue-50 p-4">
+              <label class="field-label text-blue-800">貼上 LINE 訂單</label>
+              <textarea id="rawOrderText" rows="4" class="field border-blue-200" placeholder="貼上原始文字後按自動解析"></textarea>
+              <div class="mt-2 flex items-center justify-between gap-2">
+                <span class="text-[11px] text-blue-700">固定欄位優先，金額會重新驗算</span>
+                <button id="parseBtn" type="button" class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white">自動解析</button>
+              </div>
+              <div id="parseMessage" class="hidden mt-2 rounded-lg p-2 text-xs"></div>
+            </div>
+
+            <form id="orderForm" class="space-y-3 p-4">
+              <input type="hidden" id="editingId">
+
+              <details open class="rounded-xl border border-slate-200 p-3">
+                <summary class="section-title"><span>① 訂單與行程</span><span class="text-xs text-slate-400">基本必填</span></summary>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                  <div><label class="field-label">經營模式</label><select id="mode" class="field"><option value="Mode_A">自營接單</option><option value="Mode_B">轉給同業</option><option value="Mode_C">同業轉入</option><option value="Mode_D">門票／飯店</option></select></div>
+                  <div><label class="field-label">產品分類</label><select id="category" class="field"><option value="">未分類</option><option>接送機</option><option>一日遊</option><option>多日遊</option><option>包車</option><option>門票</option><option>飯店販售</option></select></div>
+                  <div><label class="field-label">系統訂單編號</label><input id="orderNumber" class="field readonly" readonly value="儲存時自動產生"></div>
+                  <div><label class="field-label">外部單號</label><input id="externalOrderNumber" class="field" placeholder="代理或平台單號"></div>
+                  <div><label class="field-label">代理／來源</label><input id="agentName" class="field" placeholder="GDT、Kyra、Gold Ocean Tour"></div>
+                  <div><label class="field-label">旅客姓名</label><input id="customer" class="field" required></div>
+                  <div><label class="field-label">接單日期</label><input id="orderDate" type="date" class="field" required></div>
+                  <div><label class="field-label">出團日期</label><input id="departureDate" type="date" class="field" required></div>
+                  <div><label class="field-label">服務時間</label><input id="serviceTime" type="time" class="field"></div>
+                  <div><label class="field-label">人數</label><input id="pax" type="number" min="1" value="1" class="field" required></div>
+                  <div class="col-span-2"><label class="field-label">行程詳情</label><input id="tripDetail" class="field" placeholder="例如：反向大洋路10人小團"></div>
+                  <div class="col-span-2"><label class="field-label">特殊資訊</label><textarea id="specialInfo" rows="2" class="field" placeholder="成人／兒童、行李、生日、加購等"></textarea></div>
+                  <div><label class="field-label">聯絡電話</label><input id="contactPhone" class="field"></div>
+                  <div><label class="field-label">Email</label><input id="contactEmail" type="email" class="field"></div>
+                  <div><label class="field-label">集合地點</label><input id="pickupLocation" class="field"></div>
+                  <div><label class="field-label">航班資訊</label><input id="flightInfo" class="field"></div>
+                  <div class="col-span-2"><label class="field-label">上車地址</label><input id="pickupAddress" class="field"></div>
+                  <div class="col-span-2"><label class="field-label">下車地址</label><input id="dropoffAddress" class="field"></div>
+                </div>
+              </details>
+
+              <details open class="rounded-xl border border-slate-200 p-3">
+                <summary class="section-title"><span>② 銷售、匯率與401</span><span class="text-xs text-slate-400">收入與銷項稅</span></summary>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                  <div><label class="field-label">幣別</label><select id="currency" class="field"><option>AUD</option><option>TWD</option><option>CNY</option></select></div>
+                  <div><label class="field-label">匯率</label><input id="fxRate" type="number" step="0.0001" value="23" class="field"></div>
+                  <div><label class="field-label">每位單價</label><input id="unitPrice" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">訂單總額（外幣）</label><input id="amount" type="number" step="0.01" class="field" required></div>
+                  <div><label class="field-label">401稅別</label><select id="salesTaxType" class="field"><option value="unclassified">未分類</option><option value="taxable">應稅5%</option><option value="zero">零稅率</option><option value="exempt">免稅</option><option value="out_of_scope">非營業稅範圍</option></select></div>
+                  <div><label class="field-label">金額含稅</label><select id="taxInclusive" class="field"><option value="true">含稅</option><option value="false">未稅</option></select></div>
+                  <div><label class="field-label">未稅銷售額 TWD</label><input id="salesExTaxTwd" type="number" step="0.01" class="field readonly" readonly></div>
+                  <div><label class="field-label">銷項稅額 TWD</label><input id="outputTaxTwd" type="number" step="0.01" class="field readonly" readonly></div>
+                  <div class="col-span-2"><label class="field-label">含稅銷售總額 TWD</label><input id="salesTotalTwd" type="number" step="0.01" class="field bg-blue-50 font-black text-blue-800"></div>
+                  <div><label class="field-label">收入認列日</label><input id="revenueRecognitionDate" type="date" class="field"></div>
+                  <div><label class="field-label">發票狀態</label><select id="invoiceStatus" class="field"><option value="none">不開立／未設定</option><option value="pending">待開立</option><option value="issued">已開立</option><option value="void">作廢</option></select></div>
+                  <div><label class="field-label">發票日期</label><input id="invoiceDate" type="date" class="field"></div>
+                  <div><label class="field-label">發票號碼</label><input id="invoiceNumber" class="field"></div>
+                  <div><label class="field-label">買受人統編</label><input id="buyerTaxId" maxlength="8" class="field"></div>
+                  <div><label class="field-label">買受人名稱</label><input id="buyerName" class="field"></div>
+                </div>
+              </details>
+
+              <details class="rounded-xl border border-slate-200 p-3">
+                <summary class="section-title"><span>③ 收款與預收</span><span class="text-xs text-slate-400">現金、應收與預收</span></summary>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                  <div><label class="field-label">收款性質</label><select id="receiptType" class="field"><option value="unpaid">未收款</option><option value="prepayment">預收款</option><option value="partial">部分收款</option><option value="full">全額收款</option></select></div>
+                  <div><label class="field-label">收款日期</label><input id="receiptDate" type="date" class="field"></div>
+                  <div><label class="field-label">已收外幣</label><input id="receivedAmount" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">已收 TWD</label><input id="receivedTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">其中預收外幣</label><input id="prepaymentAmount" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">其中預收 TWD</label><input id="prepaymentTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">應收期限</label><input id="receivableDueDate" type="date" class="field"></div>
+                  <div><label class="field-label">付款方式</label><select id="paymentMethod" class="field"><option value="">未設定</option><option>刷卡</option><option>現金</option><option>銀行轉帳</option><option>平台代收</option><option>其他</option></select></div>
+                  <div class="col-span-2"><label class="field-label">收款帳戶</label><input id="receiptAccount" class="field" placeholder="現金、銀行帳戶、刷卡平台"></div>
+                  <div class="col-span-2 rounded-lg bg-amber-50 p-3 text-xs font-bold text-amber-800">應收餘額：<span id="receivablePreview">NT$0</span></div>
+                </div>
+              </details>
+
+              <details class="rounded-xl border border-slate-200 p-3">
+                <summary class="section-title"><span>④ 供應商、成本與應付</span><span class="text-xs text-slate-400">成本與進項稅</span></summary>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                  <div class="col-span-2"><label class="field-label">供應商／司機／同業</label><input id="supplierName" class="field"></div>
+                  <div><label class="field-label">成本總額 TWD</label><input id="costTotalTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">成本稅別</label><select id="costTaxType" class="field"><option value="unclassified">未分類</option><option value="deductible">可扣抵應稅</option><option value="non_deductible">不可扣抵</option><option value="zero">零稅率</option><option value="exempt">免稅</option><option value="out_of_scope">非營業稅範圍</option></select></div>
+                  <div><label class="field-label">未稅成本 TWD</label><input id="costExTaxTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">進項稅額 TWD</label><input id="inputTaxTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">憑證類型</label><select id="costDocumentType" class="field"><option value="">無</option><option>統一發票</option><option>收據</option><option>境外憑證</option><option>其他</option></select></div>
+                  <div><label class="field-label">憑證號碼</label><input id="costDocumentNumber" class="field"></div>
+                  <div><label class="field-label">憑證日期</label><input id="costDocumentDate" type="date" class="field"></div>
+                  <div><label class="field-label">成本認列日</label><input id="costRecognitionDate" type="date" class="field"></div>
+                  <div><label class="field-label">應付期限</label><input id="payableDueDate" type="date" class="field"></div>
+                  <div><label class="field-label">已付 TWD</label><input id="paidTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">實付日期</label><input id="payablePaidDate" type="date" class="field"></div>
+                  <div><label class="field-label">供應商預付款 TWD</label><input id="supplierPrepaymentTwd" type="number" step="0.01" class="field"></div>
+                  <div><label class="field-label">付款帳戶</label><input id="paymentAccount" class="field"></div>
+                  <div class="col-span-2 rounded-lg bg-red-50 p-3 text-xs font-bold text-red-800">應付餘額：<span id="payablePreview">NT$0</span></div>
+                </div>
+              </details>
+
+              <details class="rounded-xl border border-slate-200 p-3">
+                <summary class="section-title"><span>⑤ 備註與狀態</span><span class="text-xs text-slate-400">結案與會計說明</span></summary>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                  <div><label class="field-label">案件狀態</label><select id="caseStatus" class="field"><option value="open">未結案</option><option value="closed">已結案</option></select></div>
+                  <div><label class="field-label">訂單狀態</label><input id="orderStatusDisplay" class="field readonly" value="有效" readonly></div>
+                  <div class="col-span-2"><label class="field-label">一般備註</label><textarea id="note" rows="3" class="field"></textarea></div>
+                  <div class="col-span-2"><label class="field-label">會計備註</label><textarea id="accountingNote" rows="2" class="field"></textarea></div>
+                </div>
+              </details>
+
+              <div class="sticky bottom-0 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+                <div class="mb-2 grid grid-cols-3 gap-2 text-center text-[11px]">
+                  <div class="rounded-lg bg-blue-50 p-2"><span class="block text-slate-500">銷售</span><b id="saveSalesPreview">NT$0</b></div>
+                  <div class="rounded-lg bg-red-50 p-2"><span class="block text-slate-500">成本</span><b id="saveCostPreview">NT$0</b></div>
+                  <div class="rounded-lg bg-emerald-50 p-2"><span class="block text-slate-500">預估毛利</span><b id="saveProfitPreview">NT$0</b></div>
+                </div>
+                <button id="saveOrderBtn" type="submit" class="w-full rounded-xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700">儲存訂單</button>
+              </div>
+            </form>
+          </div>
+        </aside>
+
+        <section class="min-w-0">
+          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 class="text-lg font-black">訂單列表</h2><p class="text-xs text-slate-500">依分類、模式、狀態與日期快速篩選</p></div>
+                <button id="refreshBtn" class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold">重新整理</button>
+              </div>
+              <div id="categoryButtons" class="mt-3 flex flex-wrap gap-2"></div>
+              <div class="mt-3 grid gap-2 md:grid-cols-5">
+                <input id="orderSearch" class="field md:col-span-2" placeholder="搜尋訂單編號、旅客、代理、行程">
+                <select id="modeFilter" class="field"><option value="all">全部模式</option><option value="Mode_A">自營接單</option><option value="Mode_B">轉給同業</option><option value="Mode_C">同業轉入</option><option value="Mode_D">門票／飯店</option></select>
+                <select id="statusFilter" class="field"><option value="all">全部狀態</option><option value="active">有效</option><option value="cancelled">已取消</option><option value="unpaid">未收清</option><option value="unpayable">未付清</option></select>
+                <select id="dateFieldFilter" class="field"><option value="departure_time">依出團日</option><option value="order_date">依接單日</option><option value="receipt_date">依收款日</option></select>
+                <input id="listStartDate" type="date" class="field">
+                <input id="listEndDate" type="date" class="field">
+                <button id="clearListFilter" type="button" class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold">清除日期</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 p-4 md:grid-cols-5">
+              <div class="metric"><div class="text-xs text-slate-500">訂單數</div><div id="metricCount" class="text-xl font-black">0</div></div>
+              <div class="metric"><div class="text-xs text-slate-500">銷售 TWD</div><div id="metricSales" class="text-xl font-black text-blue-700">0</div></div>
+              <div class="metric"><div class="text-xs text-slate-500">已收 TWD</div><div id="metricReceived" class="text-xl font-black text-emerald-700">0</div></div>
+              <div class="metric"><div class="text-xs text-slate-500">應收餘額</div><div id="metricAr" class="text-xl font-black text-amber-700">0</div></div>
+              <div class="metric"><div class="text-xs text-slate-500">應付餘額</div><div id="metricAp" class="text-xl font-black text-red-700">0</div></div>
+            </div>
+
+            <div class="max-h-[calc(100vh-330px)] min-h-[400px] overflow-auto thin-scroll border-t border-slate-200">
+              <table class="w-full min-w-[1100px] text-left text-xs">
+                <thead class="table-head text-slate-600"><tr><th class="p-3">訂單／外部單號</th><th class="p-3">日期／類別</th><th class="p-3">旅客／行程</th><th class="p-3 text-right">銷售</th><th class="p-3 text-right">已收／應收</th><th class="p-3 text-right">成本／應付</th><th class="p-3">狀態</th><th class="p-3 text-right">操作</th></tr></thead>
+                <tbody id="orderListBody"></tbody>
+              </table>
+              <div id="orderEmpty" class="hidden p-10 text-center text-sm text-slate-500">沒有符合條件的訂單</div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="tab-reports" class="tabPanel hidden">
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="no-print border-b border-slate-200 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 class="text-xl font-black">會計報表中心</h2><p class="text-xs text-slate-500">所有金額以新臺幣彙總；401為內部核對試算</p></div>
+            <div class="flex gap-2"><button id="exportReportBtn" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white">匯出CSV</button><button onclick="window.print()" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold">列印</button></div>
+          </div>
+          <div class="mt-4 grid gap-2 md:grid-cols-[160px_160px_1fr]">
+            <input id="reportStartDate" type="date" class="field">
+            <input id="reportEndDate" type="date" class="field">
+            <div id="reportButtons" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+        <div id="reportOutput" class="min-h-[650px] p-4 md:p-6"></div>
+      </div>
+    </section>
+
+    <section id="tab-finance" class="tabPanel hidden">
+      <div class="grid gap-4 xl:grid-cols-[460px_minmax(0,1fr)]">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 class="text-lg font-black">其他帳務輸入</h2>
+          <p class="mb-4 text-xs text-slate-500">用於期初餘額、資本、借款、營業費用與固定資產等非訂單交易</p>
+          <form id="financeForm" class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="field-label">日期</label><input id="financeDate" type="date" class="field" required></div>
+              <div><label class="field-label">類型</label><select id="financeType" class="field" required></select></div>
+              <div><label class="field-label">金額 TWD</label><input id="financeAmount" type="number" min="0" step="0.01" class="field" required></div>
+              <div><label class="field-label">帳戶／科目</label><input id="financeAccount" class="field" placeholder="現金、銀行、設備、借款"></div>
+              <div><label class="field-label">對象</label><input id="financeCounterparty" class="field"></div>
+              <div><label class="field-label">憑證號碼</label><input id="financeDocument" class="field"></div>
+              <div class="col-span-2"><label class="field-label">備註</label><textarea id="financeNote" rows="3" class="field"></textarea></div>
+            </div>
+            <div id="financeMapping" class="rounded-lg bg-slate-50 p-3 text-xs font-bold text-slate-600"></div>
+            <button id="saveFinanceBtn" class="w-full rounded-xl bg-indigo-600 py-3 font-black text-white">儲存其他帳務</button>
+          </form>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="border-b border-slate-200 p-4"><h2 class="text-lg font-black">其他帳務明細</h2></div>
+          <div class="max-h-[calc(100vh-180px)] overflow-auto thin-scroll">
+            <table class="w-full min-w-[850px] text-xs"><thead class="table-head"><tr><th class="p-3">日期</th><th class="p-3">類型</th><th class="p-3">帳戶／對象</th><th class="p-3 text-right">金額</th><th class="p-3">現金流分類</th><th class="p-3">備註</th><th class="p-3 text-right">操作</th></tr></thead><tbody id="financeListBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
 
 <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
 
-    const SUPABASE_URL = "https://ohnedzeglswvrcrzasiq.supabase.co";
-    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_F6algA8-eFCJubSGC58pFg_jCbV86Kz";
-    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-    let currentAccessToken = '';
+const SUPABASE_URL = "https://ohnedzeglswvrcrzasiq.supabase.co";
+const SUPABASE_KEY = "sb_publishable_F6algA8-eFCJubSGC58pFg_jCbV86Kz";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const withTimeout = (promise, milliseconds, label = '作業') => {
-        let timer;
-        const timeout = new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`${label}逾時，請重新整理後確認資料是否已完成。`)), milliseconds);
-        });
-        return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-    };
+let accessToken = '';
+let currentUser = null;
+let allOrders = [];
+let orderEvents = [];
+let financeEntries = [];
+let activeCategory = 'all';
+let activeReport = '401';
+let currentReportRows = [];
+let authSequence = 0;
 
-    const callRpcDirect = async (functionName, body, timeoutMs = 20000) => {
-        if (!currentAccessToken) throw new Error('登入憑證尚未就緒，請重新登入。');
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': SUPABASE_PUBLISHABLE_KEY,
-                    'Authorization': `Bearer ${currentAccessToken}`
-                },
-                body: JSON.stringify(body),
-                signal: controller.signal
-            });
-            const text = await response.text();
-            let result = null;
-            if (text) {
-                try { result = JSON.parse(text); } catch { result = text; }
-            }
-            if (!response.ok) {
-                const message = result?.message || result?.error_description || result?.hint || text || `HTTP ${response.status}`;
-                throw new Error(message);
-            }
-            return result;
-        } catch (error) {
-            if (error?.name === 'AbortError') throw new Error('資料庫連線超過 20 秒，已中止本次寫入；請重新整理確認後再操作。');
-            throw error;
-        } finally {
-            clearTimeout(timer);
-        }
-    };
+const $ = id => document.getElementById(id);
+const num = v => Number(v || 0);
+const round2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
+const money = v => `NT$${Math.round(num(v)).toLocaleString('zh-TW')}`;
+const today = () => new Date().toISOString().slice(0,10);
+const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const dateInRange = (d,s,e) => !!d && (!s || d >= s) && (!e || d <= e);
+const withTimeout = (promise, ms, label='作業') => Promise.race([promise, new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label}逾時，請重新整理後再試。`)),ms))]);
 
-    window.currentTab = 'dashboard';
-    window.allOrders = [];
-    window.allOrderEvents = [];
-    let ordersChannel = null;
-    let eventsChannel = null;
-
-    window.addEventListener('DOMContentLoaded', () => {
-        const savedEmail = localStorage.getItem('savedTravelAppEmail');
-        if (savedEmail) {
-            document.getElementById('loginEmail').value = savedEmail;
-            document.getElementById('rememberMe').checked = true;
-        }
+async function api(path, options={}) {
+  if (!accessToken) throw new Error('登入憑證不存在，請重新登入。');
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 20000);
+  try {
+    const res = await fetch(`${SUPABASE_URL}${path}`, {
+      ...options,
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      signal: controller.signal
     });
-
-    const loadAllData = async () => {
-        const [{ data: orders, error: ordersError }, { data: events, error: eventsError }] = await Promise.all([
-            supabase.from('orders').select('*').order('timestamp', { ascending: false }),
-            supabase.from('order_events').select('*').order('created_at', { ascending: false })
-        ]);
-        if (ordersError) throw ordersError;
-        if (eventsError) throw eventsError;
-        window.allOrders = (orders || []).map(row => ({ id: row.id, data: row }));
-        window.allOrderEvents = (events || []).map(row => ({ id: row.id, data: row }));
-        window.renderCancellationUI?.();
-        window.renderUI?.();
-    };
-
-    // 本系統採「完成操作後主動重載」，避免 Realtime 異常影響寫入流程。
-    const subscribeRealtime = () => {};
-
-    const showLoggedOut = () => {
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('mainApp').classList.add('hidden');
-    };
-
-    const showLoggedIn = async (user) => {
-        const { data: access, error } = await supabase.rpc('my_access_status');
-        if (error || !access?.active) {
-            await supabase.auth.signOut();
-            showLoggedOut();
-            const errObj = document.getElementById('loginError');
-            errObj.innerText = '此帳號尚未啟用，請聯絡管理員。';
-            errObj.classList.remove('hidden');
-            return;
-        }
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('mainApp').classList.remove('hidden');
-        document.getElementById('statusText').innerText = `已登入: ${user.email} (${access.role}) 🟢`;
-        document.getElementById('statusText').classList.replace('text-slate-500', 'text-emerald-600');
-        await withTimeout(loadAllData(), 15000, '載入訂單資料');
-    };
-
-    let authUiSequence = 0;
-    const scheduleAuthUi = (session) => {
-        currentAccessToken = session?.access_token || '';
-        const sequence = ++authUiSequence;
-        // onAuthStateChange 回呼必須立即結束；Supabase 查詢延後到下一個事件循環，避免 Auth lock 死鎖。
-        setTimeout(async () => {
-            if (sequence !== authUiSequence) return;
-            try {
-                if (session?.user) await showLoggedIn(session.user);
-                else showLoggedOut();
-            } catch (error) {
-                console.error('登入狀態處理失敗', error);
-                showLoggedOut();
-                const errObj = document.getElementById('loginError');
-                errObj.innerText = `系統初始化失敗：${error?.message || '請重新整理後再試'}`;
-                errObj.classList.remove('hidden');
-            }
-        }, 0);
-    };
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-        scheduleAuthUi(session);
-    });
-
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-        const email = document.getElementById('loginEmail').value.trim();
-        const password = document.getElementById('loginPassword').value;
-        const remember = document.getElementById('rememberMe').checked;
-        const errObj = document.getElementById('loginError');
-        if (!email || !password) {
-            errObj.innerText = '請輸入帳號和密碼！';
-            errObj.classList.remove('hidden');
-            return;
-        }
-        const btn = document.getElementById('loginBtn');
-        btn.disabled = true; btn.innerText = '登入中...';
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) { errObj.innerText = `登入失敗：${error.message}`; errObj.classList.remove('hidden'); }
-        else {
-            errObj.classList.add('hidden');
-            if (remember) localStorage.setItem('savedTravelAppEmail', email);
-            else localStorage.removeItem('savedTravelAppEmail');
-        }
-        btn.disabled = false; btn.innerText = '登入系統';
-    });
-
-    document.getElementById('registerBtn').addEventListener('click', async () => {
-        const email = document.getElementById('loginEmail').value.trim();
-        const password = document.getElementById('loginPassword').value;
-        const errObj = document.getElementById('loginError');
-        if (!email || password.length < 6) {
-            errObj.innerText = '請輸入有效 Email，密碼至少 6 碼。';
-            errObj.classList.remove('hidden');
-            return;
-        }
-        const btn = document.getElementById('registerBtn');
-        btn.disabled = true; btn.innerText = '建立中...';
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-            errObj.innerText = `建立失敗：${error.message}`;
-        } else if (!data.session) {
-            errObj.innerText = '帳號已建立，請先到信箱完成驗證後再登入。';
-        } else {
-            errObj.innerText = '帳號已建立。第一個帳號會自動啟用，其餘帳號需管理員啟用。';
-        }
-        errObj.classList.remove('hidden');
-        btn.disabled = false; btn.innerText = '首次使用／建立帳號';
-    });
-
-    document.getElementById('logoutBtn').addEventListener('click', () => supabase.auth.signOut());
-
-    // ================= 計算與輔助邏輯 =================
-    window.getTodayFormatted = () => {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-    };
-
-    document.getElementById('orderDate').value = window.getTodayFormatted();
-    document.getElementById('departureTime').value = window.getTodayFormatted();
-    document.getElementById('receivableDueDate').value = window.getTodayFormatted();
-    document.getElementById('payableDueDate').value = window.getTodayFormatted();
-
-    window.handleCurrencyChange = () => {
-        const curr = document.getElementById('currency').value;
-        const fxInput = document.getElementById('fxRate');
-        if (curr === 'AUD') { fxInput.value = 23; fxInput.disabled = false; } 
-        else if (curr === 'CNY') { fxInput.value = 4.65; fxInput.disabled = false; } 
-        else if (curr === 'TWD') { fxInput.value = 1; fxInput.disabled = true; }
-        calculateTotal();
-    };
-
-    const calculateTotal = () => {
-        const unit = parseFloat(document.getElementById('unitPrice').value);
-        const pax = parseInt(document.getElementById('pax').value) || 1;
-        if (!isNaN(unit)) {
-            document.getElementById('amount').value = (unit * pax).toFixed(2);
-        }
-    };
-    document.getElementById('unitPrice').addEventListener('input', calculateTotal);
-    document.getElementById('pax').addEventListener('input', calculateTotal);
-
-    const syncAccountingDatesFromDeparture = () => {
-        if (window.currentEditId) return;
-        const dep = document.getElementById('departureTime').value || window.getTodayFormatted();
-        document.getElementById('receivableDueDate').value = dep;
-        document.getElementById('payableDueDate').value = dep;
-    };
-    document.getElementById('departureTime').addEventListener('change', syncAccountingDatesFromDeparture);
-    document.getElementById('paymentStatus').addEventListener('change', (e) => {
-        const input = document.getElementById('paymentDate');
-        if (e.target.value === 'paid' && !input.value) input.value = window.getTodayFormatted();
-        if (e.target.value === 'unpaid') input.value = '';
-    });
-    document.getElementById('payableStatus').addEventListener('change', (e) => {
-        const input = document.getElementById('payablePaidDate');
-        if (e.target.value === 'paid' && !input.value) input.value = window.getTodayFormatted();
-        if (e.target.value === 'unpaid') input.value = '';
-    });
-
-    window.switchTab = (tabName) => {
-        window.currentTab = tabName;
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(`tab-${tabName}`).classList.add('active');
-        document.querySelectorAll('.view-section').forEach(view => view.classList.add('hidden'));
-
-        const inputSec = document.getElementById('inputSection');
-        if (tabName === 'report' || tabName === 'profit-loss' || tabName === 'cancellations') inputSec.classList.add('hidden');
-        else {
-            inputSec.classList.remove('hidden');
-            if (['Mode_A', 'Mode_B', 'Mode_C', 'Mode_D'].includes(tabName)) document.getElementById('mode').value = tabName;
-        }
-
-        if (tabName === 'dashboard') document.getElementById('view-dashboard').classList.remove('hidden');
-        else if (tabName === 'report') document.getElementById('view-report').classList.remove('hidden');
-        else if (tabName === 'profit-loss') {
-            document.getElementById('view-profit-loss').classList.remove('hidden');
-            if (!document.getElementById('plStartDate').value) window.setAccountingMonthRange(false);
-            window.updateReportHeader('pl');
-        }
-        else if (tabName === 'cancellations') {
-            document.getElementById('view-cancellations').classList.remove('hidden');
-            window.renderCancellationUI();
-        }
-        else {
-            document.getElementById('view-single-mode').classList.remove('hidden');
-            const titles = { Mode_A: "📦 自營接單 (A)", Mode_B: "📤 轉給同業 (B)", Mode_C: "📥 同業轉入 (C)", Mode_D: "🎟️ 門票 飯店販售 (D)" };
-            document.getElementById('single-mode-title').innerText = titles[tabName];
-        }
-        window.renderUI(); 
-    };
-
-    window.updateReportHeader = (prefix) => {
-        if (prefix === 'pl') {
-            const startDate = document.getElementById('plStartDate')?.value || '未指定';
-            const endDate = document.getElementById('plEndDate')?.value || '未指定';
-            document.getElementById('plHeaderTitle').innerText = `會計損益與帳款報表 (${startDate} ～ ${endDate})`;
-            return;
-        }
-        const type = document.getElementById(`${prefix}TimeType`).value;
-        const mp = document.getElementById(`${prefix}MonthPicker`).value;
-        const dp = document.getElementById(`${prefix}DatePicker`).value;
-        const header = document.getElementById('reportHeaderTitle');
-        if (type === 'all') header.innerText = '澳洲旅遊業務出團報表 (全部時間)';
-        else if (type === 'month') header.innerText = `澳洲旅遊業務出團報表 (${mp})`;
-        else if (type === 'day') header.innerText = `澳洲旅遊業務出團報表 (${dp})`;
-    };
-
-    window.toggleDateInputs = (prefix) => {
-        const type = document.getElementById(`${prefix}TimeType`).value;
-        const mp = document.getElementById(`${prefix}MonthPicker`);
-        const dp = document.getElementById(`${prefix}DatePicker`);
-        mp.classList.toggle('hidden', type !== 'month');
-        dp.classList.toggle('hidden', type !== 'day');
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        if(type === 'month' && !mp.value) mp.value = `${yyyy}-${mm}`;
-        if(type === 'day' && !dp.value) dp.value = `${yyyy}-${mm}-${dd}`;
-    };
-
-    window.setAccountingMonthRange = (rerender = true) => {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const last = new Date(y, now.getMonth() + 1, 0).getDate();
-        document.getElementById('plStartDate').value = `${y}-${m}-01`;
-        document.getElementById('plEndDate').value = `${y}-${m}-${String(last).padStart(2, '0')}`;
-        window.updateReportHeader('pl');
-        if (rerender) window.renderUI();
-    };
-
-    window.exportToImage = (viewType) => {
-        const containerId = viewType === 'report' ? 'report-container' : 'pl-container';
-        const titleId = viewType === 'report' ? 'reportHeaderTitle' : 'plHeaderTitle';
-        const container = document.getElementById(containerId);
-        document.getElementById(titleId).classList.remove('hidden');
-        const noPrintElements = container.querySelectorAll('.no-print');
-        noPrintElements.forEach(el => el.style.display = 'none');
-
-        html2canvas(container, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
-            const link = document.createElement('a');
-            let dateSuffix = '全部';
-            if (viewType === 'report') {
-                const type = document.getElementById('reportTimeType').value;
-                if (type === 'month') dateSuffix = document.getElementById('reportMonthPicker').value;
-                else if (type === 'day') dateSuffix = document.getElementById('reportDatePicker').value;
-            } else {
-                dateSuffix = `${document.getElementById('plStartDate').value}_${document.getElementById('plEndDate').value}`;
-            }
-            link.download = `旅遊${viewType === 'report' ? '出團報表' : '會計帳款報表'}_${dateSuffix}.png`;
-            link.href = canvas.toDataURL('image/png'); link.click();
-            document.getElementById(titleId).classList.add('hidden');
-            noPrintElements.forEach(el => el.style.display = '');
-        });
-    };
-
-    const csvEscape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-    window.exportAccountingCSV = () => {
-        const rows = window.currentAccountingExportRows || [];
-        const events = window.currentAccountingExportEvents || [];
-        const headers = ['資料類型','日期','訂單編號','旅客','模式','幣別','應收帳款TWD','實收TWD','應付帳款TWD','實付TWD','退款TWD','取消狀態','淨損益TWD','原因或備註'];
-        const lines = [headers.map(csvEscape).join(',')];
-        rows.forEach(r => lines.push([
-            '訂單', r.primaryDate, r.orderNumber, r.customer, r.mode, r.currency,
-            r.arTwd, r.receivedTwd, r.apTwd, r.paidTwd, r.refundTwd,
-            r.cancelled ? '已取消' : '有效', r.profitTwd, r.note
-        ].map(csvEscape).join(',')));
-        events.forEach(e => lines.push([
-            e.type === 'refund' ? '退款異動' : '取消異動', e.date, e.orderNumber, e.customer, '', e.currency,
-            '', '', '', '', e.refundTwd, e.type === 'cancel_trip' ? '已取消' : '', '', `${e.reason || ''} ${e.note || ''}`.trim()
-        ].map(csvEscape).join(',')));
-        const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `會計應收應付_${document.getElementById('plStartDate').value}_${document.getElementById('plEndDate').value}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
-    };
-
-    window.resetFormUI = () => {
-        window.currentEditId = null; document.getElementById('orderForm').reset();
-        document.getElementById('currency').value = 'AUD'; window.handleCurrencyChange();
-        document.getElementById('rawOrderText').value = '';
-        document.getElementById('parseResult').classList.add('hidden');
-        document.getElementById('orderNumber').value = '儲存時自動產生';
-        document.getElementById('orderDate').value = window.getTodayFormatted();
-        document.getElementById('departureTime').value = window.getTodayFormatted();
-        document.getElementById('receivableDueDate').value = window.getTodayFormatted();
-        document.getElementById('paymentDate').value = '';
-        document.getElementById('payableDueDate').value = window.getTodayFormatted();
-        document.getElementById('payableStatus').value = 'unpaid';
-        document.getElementById('payablePaidDate').value = '';
-        document.getElementById('costDriver').value = '0';
-        document.getElementById('costFuel').value = '0';
-        document.getElementById('costTicket').value = '0';
-        document.getElementById('category').value = '';
-        document.getElementById('paymentStatus').value = 'unpaid'; document.getElementById('caseStatus').value = 'open';
-
-        if (['Mode_A', 'Mode_B', 'Mode_C', 'Mode_D'].includes(window.currentTab)) document.getElementById('mode').value = window.currentTab;
-
-        const formTitle = document.getElementById('formTitle');
-        formTitle.innerText = "🆕 快速錄入新訂單";
-        formTitle.classList.replace("text-orange-600", "text-slate-800");
-        document.getElementById('formSection').classList.remove("bg-orange-50", "border-orange-300");
-        const formSubmitBtn = document.getElementById('formSubmitBtn');
-        formSubmitBtn.innerText = "預覽並準備存檔";
-        formSubmitBtn.classList.replace("bg-orange-600", "bg-emerald-600");
-        document.getElementById('cancelEditBtn').classList.add("hidden");
-    };
-
-    document.getElementById('cancelEditBtn').addEventListener('click', window.resetFormUI);
-
-    // ================= ⚡ 智慧文字解析引擎（標籤優先，避免猜測） =================
-    const normalizeOrderDate = (value) => {
-        if (!value) return '';
-        const text = value.trim();
-        let m = text.match(/(20\d{2})[\/.年-](\d{1,2})[\/.月-](\d{1,2})/);
-        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-        m = text.match(/^(\d{1,2})[\/.月-](\d{1,2})(?:日|號)?$/);
-        if (m) {
-            let year = new Date().getFullYear();
-            const candidate = new Date(year, Number(m[1])-1, Number(m[2]));
-            const now = new Date();
-            // 超過目前日期 180 天以前的月日，視為下一年度行程
-            if (candidate.getTime() < now.getTime() - 180*86400000) year += 1;
-            return `${year}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-        }
-        return '';
-    };
-
-    const getLabeledValue = (text, labels) => {
-        const escaped = labels.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-        const match = text.match(new RegExp(`^(?:${escaped})\\s*[：:]\\s*(.+)$`, 'mi'));
-        return match ? match[1].trim() : '';
-    };
-
-    const showParseResult = (messages, hasWarning=false) => {
-        const box = document.getElementById('parseResult');
-        box.className = `mt-2 p-2 rounded-md text-xs whitespace-pre-wrap ${hasWarning ? 'bg-amber-50 border border-amber-300 text-amber-800' : 'bg-emerald-50 border border-emerald-300 text-emerald-800'}`;
-        box.textContent = messages.join('\n');
-    };
-
-    document.getElementById('parseBtn').addEventListener('click', () => {
-        const rawText = document.getElementById('rawOrderText').value.trim();
-        if(!rawText) return alert("請先貼上文字");
-
-        let mode = document.getElementById('mode').value;
-        let customer = '', amount = '', pax = 1, note = '', unitPrice = '';
-        let orderDate = '', departureTime = '', currency = 'AUD', category = '', special = '';
-        const warnings = [], parsed = [];
-        const upperText = rawText.toUpperCase();
-
-        const modeValue = getLabeledValue(rawText, ['經營模式','模式','訂單來源']);
-        if (/轉給同業|轉出|MODE\s*B/i.test(modeValue) || upperText.includes('FLIGGY') || upperText.includes('LITTLE FOX')) mode = 'Mode_B';
-        else if (/同業轉入|轉入|MODE\s*C/i.test(modeValue) || rawText.includes('第三方平台') || rawText.includes('更改者資料')) mode = 'Mode_C';
-        else if (/門票|飯店|酒店|MODE\s*D/i.test(modeValue) || rawText.includes('前台售')) mode = 'Mode_D';
-        else if (/自營|自出|MODE\s*A/i.test(modeValue) || rawText.includes('我的預訂網站')) mode = 'Mode_A';
-
-        const categoryValue = getLabeledValue(rawText, ['產品分類','分類','產品','行程類型']);
-        const categorySource = categoryValue || rawText;
-        if (/接送機|接機|送機|TRANSFER/i.test(categorySource)) category = '接送機';
-        else if (/一日遊|當天往返/.test(categorySource)) category = '一日遊';
-        else if (/多日遊|二日遊|三日遊|四日遊/.test(categorySource)) category = '多日遊';
-        else if (/包車|專車/.test(categorySource)) category = '包車';
-        else if (/門票|景點票|票券/.test(categorySource)) category = '門票';
-        else if (/飯店|酒店|住宿|房型/.test(categorySource)) category = '飯店販售';
-        if ((category === '門票' || category === '飯店販售') && mode === 'Mode_A') mode = 'Mode_D';
-
-        customer = getLabeledValue(rawText, ['旅客姓名/單號','旅客姓名','客戶姓名','姓名','外部單號','平台單號','原始單號']);
-        if (!customer) {
-            const orderMatch = rawText.match(/訂單詳情\s*-\s*([A-Z0-9-]+)/i);
-            if (orderMatch) customer = orderMatch[1];
-        }
-        if (!customer) warnings.push('⚠️ 未辨識旅客姓名／外部單號，請人工確認。'); else parsed.push(`✓ 旅客／外部單號：${customer}`);
-
-        orderDate = normalizeOrderDate(getLabeledValue(rawText, ['接單日期','訂單日期','下單日期','建立日期']));
-        departureTime = normalizeOrderDate(getLabeledValue(rawText, ['出團日期','出發日期','用車日期','行程日期','入住日期','使用日期']));
-        if (!orderDate) { orderDate = window.getTodayFormatted(); warnings.push('⚠️ 未標示接單日期，已暫用今天。'); }
-        else parsed.push(`✓ 接單日期：${orderDate}`);
-        if (!departureTime) warnings.push('⚠️ 未辨識出團日期；為避免誤判付款日或訊息日期，未自動抓取其他日期。');
-        else parsed.push(`✓ 出團日期：${departureTime}`);
-
-        const currValue = getLabeledValue(rawText, ['幣別','貨幣']);
-        if (/CNY|RMB|人民幣|¥/i.test(currValue || rawText)) currency = 'CNY';
-        if (/TWD|NT\$|台幣|新台幣/i.test(currValue || rawText)) currency = 'TWD';
-
-        const paxValue = getLabeledValue(rawText, ['人數','旅客人數','PAX']);
-        const paxMatch = paxValue.match(/\d+/) || rawText.match(/(?:人數|PAX)\s*[：:]?\s*(\d+)/i) || rawText.match(/(\d+)\s*位/);
-        if (paxMatch) pax = Number(paxMatch[1] || paxMatch[0]);
-
-        const unitValue = getLabeledValue(rawText, ['單價']);
-        const totalValue = getLabeledValue(rawText, ['總額','總計','訂單總額','應收金額']);
-        if (unitValue) unitPrice = (unitValue.match(/[\d,.]+/) || [''])[0].replace(/,/g,'');
-        if (totalValue) amount = (totalValue.match(/[\d,.]+/) || [''])[0].replace(/,/g,'');
-        if (!unitPrice || !amount) {
-            const calcMatch = rawText.match(/(?:A\$|AUD|RMB|CNY|NT\$|TWD|¥|\$)?\s*([\d,.]+)\s*[xX×*]\s*(\d+)/);
-            if (calcMatch) {
-                unitPrice ||= calcMatch[1].replace(/,/g,''); pax = Number(calcMatch[2]);
-                amount ||= (Number(unitPrice) * pax).toFixed(2);
-            }
-        }
-        if (!amount && unitPrice) amount = (Number(unitPrice) * pax).toFixed(2);
-        if (!amount) warnings.push('⚠️ 未辨識總額，請人工輸入；系統不再抓取任意金額。');
-        else parsed.push(`✓ 金額：${currency} ${amount}（${pax} 人）`);
-
-        special = getLabeledValue(rawText, ['特殊資訊','特殊需求','房型','裝備','行李','體重']);
-        note = getLabeledValue(rawText, ['行程詳情','行程內容','備註','行程']);
-        if (!note) note = rawText;
-
-        document.getElementById('mode').value = mode;
-        document.getElementById('category').value = category;
-        if(customer) document.getElementById('customer').value = customer;
-        document.getElementById('orderDate').value = orderDate;
-        if(departureTime) {
-            document.getElementById('departureTime').value = departureTime;
-            if (!window.currentEditId) {
-                document.getElementById('receivableDueDate').value = departureTime;
-                document.getElementById('payableDueDate').value = departureTime;
-            }
-        }
-        document.getElementById('pax').value = pax;
-        document.getElementById('currency').value = currency; window.handleCurrencyChange();
-        document.getElementById('unitPrice').value = unitPrice;
-        if(amount) document.getElementById('amount').value = amount;
-        document.getElementById('note').value = note;
-        if(special) document.getElementById('specialInfo').value = special;
-        showParseResult([...parsed, ...warnings], warnings.length > 0);
-    });
-
-    document.getElementById('orderForm').addEventListener('submit', (e) => {
-        e.preventDefault(); 
-        const modeVal = document.getElementById('mode').value;
-        const categoryVal = document.getElementById('category').value;
-        const currencyVal = document.getElementById('currency').value;
-        const paxVal = parseInt(document.getElementById('pax').value) || 1;
-        const unitVal = parseFloat(document.getElementById('unitPrice').value) || null;
-        const amountVal = parseFloat(document.getElementById('amount').value) || 0;
-        const fxVal = parseFloat(document.getElementById('fxRate').value) || 1;
-        const twdVal = Math.round(amountVal * fxVal) || 0;
-        
-        // 核心更新：讀取並計算細分成本
-        const cDriver = parseFloat(document.getElementById('costDriver').value) || 0;
-        const cFuel = parseFloat(document.getElementById('costFuel').value) || 0;
-        const cTicket = parseFloat(document.getElementById('costTicket').value) || 0;
-        const totalCostVal = cDriver + cFuel + cTicket;
-
-        const paymentStatusVal = document.getElementById('paymentStatus').value;
-        const caseStatusVal = document.getElementById('caseStatus').value;
-        const existingOrder = window.currentEditId ? window.allOrders.find(o => o.id === window.currentEditId) : null;
-        const currentTimestamp = existingOrder ? existingOrder.data.timestamp : new Date();
-
-        window.pendingData = {
-            order_number: existingOrder?.data?.order_number || null,
-            mode: modeVal, category: categoryVal, customer: document.getElementById('customer').value, pax: paxVal, currency: currencyVal, unit_price: unitVal, amount: amountVal, aud: amountVal, fx_rate: fxVal, twd: twdVal,
-            cost_driver: cDriver, cost_fuel: cFuel, cost_ticket: cTicket, cost: totalCostVal, // 加總寫入
-            payment_status: paymentStatusVal,
-            payment_date: paymentStatusVal === 'paid' ? (document.getElementById('paymentDate').value || window.getTodayFormatted()) : '',
-            receivable_due_date: document.getElementById('receivableDueDate').value || document.getElementById('departureTime').value,
-            payable_status: document.getElementById('payableStatus').value,
-            payable_due_date: document.getElementById('payableDueDate').value || document.getElementById('departureTime').value,
-            payable_paid_date: document.getElementById('payableStatus').value === 'paid' ? (document.getElementById('payablePaidDate').value || window.getTodayFormatted()) : '',
-            case_status: caseStatusVal, order_date: document.getElementById('orderDate').value, departure_time: document.getElementById('departureTime').value, note: document.getElementById('note').value, special_info: document.getElementById('specialInfo').value, status: 'completed', timestamp: currentTimestamp 
-        };
-
-        const currSymbol = { AUD: 'A$', CNY: '¥', TWD: 'NT$' }[currencyVal] || 'A$';
-        document.getElementById('modalTitle').innerText = window.currentEditId ? "確認更新訂單" : "確認新增訂單";
-        document.getElementById('modalOrderNumber').innerText = window.pendingData.order_number || `AU${window.getTodayFormatted().replaceAll('-', '')}＋三碼流水號（儲存時鎖定）`;
-        document.getElementById('modalMode').innerText = document.getElementById('mode').options[document.getElementById('mode').selectedIndex].text;
-        document.getElementById('modalCategory').innerText = categoryVal ? `[${categoryVal}]` : '';
-        document.getElementById('modalCustomer').innerText = window.pendingData.customer;
-        document.getElementById('modalUnitPax').innerText = unitVal ? `單價 ${currSymbol} ${unitVal} × ${paxVal} 人` : `${paxVal} 人`;
-        document.getElementById('modalAmount').innerText = `${currSymbol} ${amountVal}`;
-        
-        // 彈窗細目顯示
-        document.getElementById('modalCostBreakdown').innerText = `司機:${cDriver} + 油錢:${cFuel} + 門票:${cTicket}`;
-        document.getElementById('modalCost').innerText = `${currSymbol} ${totalCostVal.toFixed(2)}`;
-        
-        document.getElementById('modalTwd').innerText = window.pendingData.twd.toLocaleString();
-        document.getElementById('modalPaymentStatus').innerText = paymentStatusVal === 'paid' ? '✅ 已收款' : '❌ 未收款';
-        document.getElementById('modalCaseStatus').innerText = caseStatusVal === 'closed' ? '📁 已結案' : '⏳ 未結案';
-        document.getElementById('modalReceivableDates').innerText = `${window.pendingData.receivable_due_date || '-'}／${window.pendingData.payment_date || '尚未收款'}`;
-        document.getElementById('modalPayableDates').innerText = `${window.pendingData.payable_due_date || '-'}／${window.pendingData.payable_paid_date || '尚未付款'}`;
-        document.getElementById('modalOrderDate').innerText = window.pendingData.order_date || '未指定';
-        document.getElementById('modalDeparture').innerText = window.pendingData.departure_time || '未指定';
-        document.getElementById('modalNote').innerText = window.pendingData.note;
-
-        document.getElementById('confirmModal').classList.remove('hidden');
-    });
-
-    document.getElementById('cancelBtn').addEventListener('click', () => document.getElementById('confirmModal').classList.add('hidden') );
-
-    // ================= 寫入與即時渲染引擎 =================
-    const getTimestampMs = (ts) => {
-        if (!ts) return 0;
-        if (ts.toMillis) return ts.toMillis();
-        if (ts.toDate) return ts.toDate().getTime();
-        return new Date(ts).getTime();
-    };
-
-    const createOrderWithUniqueNumber = async (orderData) => {
-        const payload = { ...orderData };
-        delete payload.order_number;
-        delete payload.timestamp;
-        return await callRpcDirect('create_order', { p_order: payload }, 20000);
-    };
-
-    const updateOrder = async (id, changes) => {
-        const payload = { ...changes, updated_at: new Date().toISOString() };
-        delete payload.timestamp;
-        const { error } = await supabase.from('orders').update(payload).eq('id', id);
-        if (error) throw error;
-    };
-
-    document.getElementById('confirmSaveBtn').addEventListener('click', async () => {
-        const btn = document.getElementById('confirmSaveBtn');
-        btn.disabled = true;
-        btn.innerText = "寫入中...";
-        let saveSucceeded = false;
-        try {
-            let savedOrderNumber = window.pendingData.order_number;
-            const currentOrder = window.currentEditId ? window.allOrders.find(o => o.id === window.currentEditId) : null;
-
-            if (window.currentEditId && currentOrder?.data?.order_number) {
-                await updateOrder(window.currentEditId, window.pendingData);
-            } else if (window.currentEditId) {
-                // 舊資料第一次更新時補發正式訂單編號，並保留舊文件避免靜默遺失。
-                const result = await createOrderWithUniqueNumber({
-                    ...window.pendingData,
-                    legacy_source_id: window.currentEditId
-                });
-                savedOrderNumber = result.orderNumber;
-                await updateOrder(window.currentEditId, {
-                    migrated_to_order_number: savedOrderNumber,
-                    order_status: 'migrated',
-                    case_status: 'closed',
-                    migration_timestamp: new Date().toISOString()
-                });
-            } else {
-                const result = await createOrderWithUniqueNumber(window.pendingData);
-                savedOrderNumber = result.orderNumber;
-            }
-
-            saveSucceeded = true;
-            try {
-                await withTimeout(loadAllData(), 12000, '重新整理訂單清單');
-            } catch (refreshError) {
-                console.warn('訂單已寫入，但清單重新整理失敗', refreshError);
-            }
-            alert(`訂單已儲存：${savedOrderNumber}`);
-        } catch (e) {
-            console.error(e);
-            const message = e?.message || '';
-            if (message.includes('DAILY_SEQUENCE_EXCEEDED')) alert('今日訂單流水號已達 999 筆，請聯絡系統管理者調整編碼規則。');
-            else if (message.includes('逾時') || message.includes('超過 20 秒')) alert(`${message}
-
-請先重新整理頁面並查看訂單清單，確認未新增後再送出，避免重複訂單。`);
-            else alert(`寫入失敗：${message || '請確認登入與資料權限'}`);
-        } finally {
-            if (saveSucceeded) {
-                document.getElementById('confirmModal').classList.add('hidden');
-                window.resetFormUI();
-            }
-            btn.innerText = "確認並存入";
-            btn.disabled = false;
-        }
-    });
-
-    window.deleteOrder = async (id) => {
-        if (!confirm('確定要刪除這筆訂單嗎？')) return;
-        try {
-            const { error } = await withTimeout(supabase.from('orders').delete().eq('id', id), 15000, '刪除訂單');
-            if (error) throw error;
-            await loadAllData();
-        } catch (error) { alert(`刪除失敗：${error?.message || '請稍後再試'}`); }
-    };
-    window.togglePayment = async (id, currentStatus) => {
-        try {
-            const next = currentStatus === 'paid' ? 'unpaid' : 'paid';
-            await withTimeout(updateOrder(id, { payment_status: next, payment_date: next === 'paid' ? window.getTodayFormatted() : '' }), 15000, '更新收款狀態');
-            await loadAllData();
-        } catch (error) { alert(`更新失敗：${error?.message || '請稍後再試'}`); }
-    };
-    window.togglePayable = async (id, currentStatus) => {
-        try {
-            const next = currentStatus === 'paid' ? 'unpaid' : 'paid';
-            await withTimeout(updateOrder(id, { payable_status: next, payable_paid_date: next === 'paid' ? window.getTodayFormatted() : '' }), 15000, '更新付款狀態');
-            await loadAllData();
-        } catch (error) { alert(`更新失敗：${error?.message || '請稍後再試'}`); }
-    };
-    window.toggleCase = async (id, currentStatus) => {
-        try {
-            await withTimeout(updateOrder(id, { case_status: currentStatus === 'closed' ? 'open' : 'closed' }), 15000, '更新結案狀態');
-            await loadAllData();
-        } catch (error) { alert(`更新失敗：${error?.message || '請稍後再試'}`); }
-    };
-
-    window.editOrder = (id) => {
-        const dataDoc = window.allOrders.find(o => o.id === id); if(!dataDoc) return;
-        window.currentEditId = id; const data = dataDoc.data;
-        
-        document.getElementById('orderNumber').value = data.order_number || '舊資料：更新後自動補發';
-        document.getElementById('mode').value = data.mode; document.getElementById('category').value = data.category || '';
-        document.getElementById('customer').value = data.customer || '';
-        const savedCurrency = data.currency || 'AUD'; document.getElementById('currency').value = savedCurrency;
-        window.handleCurrencyChange(); document.getElementById('fxRate').value = data.fx_rate || 23; 
-        document.getElementById('fxRate').disabled = (savedCurrency === 'TWD');
-        document.getElementById('unitPrice').value = data.unit_price || ''; document.getElementById('pax').value = data.pax || 1;
-        document.getElementById('amount').value = data.amount || data.aud || '';
-        
-        // 核心更新：回填修改資料時的細分成本
-        document.getElementById('costDriver').value = data.cost_driver || '0';
-        document.getElementById('costFuel').value = data.cost_fuel || '0';
-        document.getElementById('costTicket').value = data.cost_ticket || '0';
-        
-        document.getElementById('paymentStatus').value = data.payment_status || (data.status === 'completed' ? 'paid' : 'unpaid');
-        document.getElementById('paymentDate').value = data.payment_date || '';
-        document.getElementById('caseStatus').value = data.case_status || (data.status === 'completed' ? 'closed' : 'open');
-        document.getElementById('orderDate').value = data.order_date || (data.timestamp?.toDate ? data.timestamp.toDate().toISOString().slice(0,10) : window.getTodayFormatted());
-        document.getElementById('departureTime').value = data.departure_time || '';
-        document.getElementById('receivableDueDate').value = data.receivable_due_date || data.departure_time || data.order_date || window.getTodayFormatted();
-        document.getElementById('payableDueDate').value = data.payable_due_date || data.departure_time || data.order_date || window.getTodayFormatted();
-        document.getElementById('payableStatus').value = data.payable_status || ((Number(data.cost || 0) <= 0) ? 'paid' : 'unpaid');
-        document.getElementById('payablePaidDate').value = data.payable_paid_date || '';
-        document.getElementById('note').value = data.note || '';
-        document.getElementById('specialInfo').value = data.special_info || '';
-
-        if(['report', 'profit-loss', 'cancellations'].includes(window.currentTab)) window.switchTab('dashboard');
-        document.getElementById('formTitle').innerText = "✏️ 修改訂單模式";
-        document.getElementById('formTitle').classList.replace("text-slate-800", "text-orange-600");
-        document.getElementById('formSection').classList.add("bg-orange-50", "border-orange-300");
-        document.getElementById('formSubmitBtn').innerText = "預覽並準備更新";
-        document.getElementById('formSubmitBtn').classList.replace("bg-emerald-600", "bg-orange-600");
-        document.getElementById('cancelEditBtn').classList.remove("hidden");
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const generateCardHTML = (docItem) => {
-        const data = docItem.data;
-        const isPaid = (data.payment_status === 'paid') || (!data.payment_status && data.status === 'completed');
-        const isPayablePaid = data.payable_status === 'paid' || (Number(data.cost || 0) <= 0);
-        const isClosed = (data.case_status === 'closed') || (!data.case_status && data.status === 'completed');
-        const isCancelled = data.order_status === 'cancelled';
-        const isMigrated = data.order_status === 'migrated';
-        const paymentBadge = isPaid ? `<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">✅ 收款</span>` : `<span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">❌ 未收</span>`;
-        const payableBadge = isPayablePaid ? `<span class="bg-orange-100 text-orange-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">✅ 成本已付</span>` : `<span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">⚠️ 成本未付</span>`;
-        const refundBadge = data.refund_status === 'full'
-            ? `<span class="bg-rose-100 text-rose-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">💸 已全退</span>`
-            : (data.refund_status === 'partial' ? `<span class="bg-pink-100 text-pink-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">💸 部分退款</span>` : '');
-        const caseBadge = isCancelled
-            ? `<span class="bg-rose-100 text-rose-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">🚫 已取消</span>`
-            : (isMigrated
-                ? `<span class="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">↪️ 已轉新單</span>`
-                : (isClosed ? `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">📁 結案</span>` : `<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded mr-1 shadow-sm">⏳ 未結</span>`));
-        const categoryBadge = data.category ? `<span class="bg-purple-100 text-purple-800 border border-purple-200 text-xs px-2 py-0.5 rounded mr-2 shadow-sm font-bold">🏷️ ${data.category}</span>` : '';
-        const paxDisplay = data.pax ? `<span class="bg-slate-200 text-slate-700 font-bold text-xs px-2 py-0.5 rounded">👤 ${data.pax}</span>` : '';
-        const orderDateDisplay = data.order_date ? `<span class="text-xs font-bold text-sky-600">接單 ${data.order_date}</span>` : '';
-        const timeDisplay = data.departure_time ? `<span class="text-xs font-bold text-orange-600">出團 ${data.departure_time}</span>` : '';
-        const dateDisplay = (orderDateDisplay || timeDisplay) ? `<p class="mt-1 flex flex-wrap gap-2">${orderDateDisplay}${timeDisplay}</p>` : '';
-        
-        const currType = data.currency || 'AUD'; const sym = { AUD: 'A$', CNY: '¥', TWD: 'NT$' }[currType] || 'A$';
-        const displayAmount = data.amount || data.aud || 0; const displayCost = data.cost || 0;
-        const unitDisplay = data.unit_price ? `<span class="text-[10px] font-bold text-blue-500 block leading-tight mb-0.5">${sym} ${data.unit_price} × ${data.pax}</span>` : '';
-
-        // 核心變更：卡片上直覺顯示細分成本
-        const cDriver = data.cost_driver || 0; const cFuel = data.cost_fuel || 0; const cTicket = data.cost_ticket || 0;
-
-        return `
-            <div class="order-card p-4 bg-white rounded-lg border border-slate-200 hover:border-blue-400 transition shadow-sm relative group">
-                <div class="action-btns absolute top-2 right-2 bg-white/90 p-1.5 rounded-lg shadow-md flex space-x-2 z-10 border border-slate-200">
-                    <button onclick="togglePayment('${docItem.id}', '${isPaid ? 'paid' : 'unpaid'}')" class="text-slate-600 hover:text-emerald-600 text-xs font-bold transition">💲收款</button>
-                    <button onclick="togglePayable('${docItem.id}', '${isPayablePaid ? 'paid' : 'unpaid'}')" class="text-slate-600 hover:text-orange-600 text-xs font-bold transition">💳成本</button>
-                    <button onclick="toggleCase('${docItem.id}', '${isClosed ? 'closed' : 'open'}')" class="text-slate-600 hover:text-blue-600 text-xs font-bold transition">📁結案</button>
-                    <button onclick="editOrder('${docItem.id}')" class="text-slate-400 hover:text-orange-500 transition">✏️</button>
-                    <button onclick="deleteOrder('${docItem.id}')" class="text-slate-400 hover:text-red-500 transition">🗑️</button>
-                </div>
-                <div class="flex items-center mb-2 pr-32 flex-wrap gap-y-1">${paymentBadge} ${payableBadge} ${caseBadge} ${refundBadge} ${categoryBadge} ${paxDisplay}</div>
-                <p class="text-[11px] font-bold text-sky-700 mb-1">${data.order_number || '舊資料・尚無正式編號'}</p>
-                <p class="font-bold text-base text-slate-800 leading-tight">${data.customer}</p>
-                ${dateDisplay}
-                <div class="bg-slate-50 border border-slate-100 rounded p-2 mt-2 max-h-20 overflow-y-auto text-xs text-slate-600 whitespace-pre-wrap">${data.note}</div>
-                <p class="text-xs text-red-500 mt-1 font-bold">${data.special_info || ''}</p>
-                <div class="flex justify-between items-end mt-3 border-t border-slate-100 pt-2">
-                    <div class="text-left">
-                        <span class="text-[10px] text-slate-400 block mb-0.5">匯率 ${data.fx_rate} </span>
-                        <span class="text-xs text-red-500 font-bold bg-red-50 px-1.5 py-0.5 rounded border border-red-100 block">成本: ${sym} ${displayCost}</span>
-                        <span class="text-[10px] text-red-400 block font-medium leading-none mt-1">司:${cDriver} 油:${cFuel} 票:${cTicket}</span>
-                    </div>
-                    <div class="text-right">
-                        ${unitDisplay}
-                        <span class="font-bold text-slate-800 text-base">${sym} ${displayAmount}</span>
-                        <p class="text-[11px] text-slate-500 font-bold">NT$ ${data.twd.toLocaleString()}</p>
-                    </div>
-                </div>
-            </div>
-        `;
-    };
-
-    const getOrderCurrencySymbol = (currency) => ({ AUD: 'A$', CNY: '¥', TWD: 'NT$' }[currency] || currency || '');
-
-    const getSelectedAdjustmentOrder = () => {
-        const id = document.getElementById('adjustmentOrderId')?.value;
-        return window.allOrders.find(item => item.id === id) || null;
-    };
-
-    window.refreshAdjustmentOrderOptions = () => {
-        const select = document.getElementById('adjustmentOrderId');
-        if (!select) return;
-        const current = select.value;
-        const eligible = window.allOrders
-            .filter(item => item.data.order_number && item.data.order_status !== 'migrated')
-            .sort((a, b) => (b.data.order_number || '').localeCompare(a.data.order_number || ''));
-
-        select.innerHTML = '<option value="">-- 請選擇訂單編號 --</option>' + eligible.map(item => {
-            const data = item.data;
-            const status = data.order_status === 'cancelled' ? '｜已取消' : (data.refund_status === 'full' ? '｜已全退' : '');
-            return `<option value="${item.id}">${data.order_number}｜${data.customer || '未填姓名'}｜${data.departure_time || '未填出團日'}${status}</option>`;
-        }).join('');
-        if (eligible.some(item => item.id === current)) select.value = current;
-        window.updateSelectedOrderSummary();
-    };
-
-    window.updateSelectedOrderSummary = () => {
-        const item = getSelectedAdjustmentOrder();
-        const box = document.getElementById('selectedOrderSummary');
-        const hint = document.getElementById('refundableHint');
-        if (!box || !hint) return;
-        if (!item) {
-            box.classList.add('hidden');
-            hint.textContent = '';
-            return;
-        }
-        const data = item.data;
-        const original = Number(data.amount || data.aud || 0);
-        const refunded = Number(data.refund_total || 0);
-        const refundable = Math.max(0, original - refunded);
-        const sym = getOrderCurrencySymbol(data.currency);
-        box.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-                <div><span class="text-slate-500 text-xs block">訂單編號</span><strong class="text-sky-700">${data.order_number}</strong></div>
-                <div><span class="text-slate-500 text-xs block">旅客</span><strong>${data.customer || '-'}</strong></div>
-                <div><span class="text-slate-500 text-xs block">出團日期</span><strong class="text-orange-600">${data.departure_time || '-'}</strong></div>
-                <div><span class="text-slate-500 text-xs block">訂單狀態</span><strong>${data.order_status === 'cancelled' ? '🚫 已取消出團' : '✅ 已成立'}</strong></div>
-            </div>
-            <div class="mt-2 text-xs text-slate-600">原訂單 ${sym} ${original.toFixed(2)}｜累計退款 ${sym} ${refunded.toFixed(2)}｜尚可退款 <strong class="text-rose-700">${sym} ${refundable.toFixed(2)}</strong></div>`;
-        box.classList.remove('hidden');
-        hint.textContent = `尚可退款：${sym} ${refundable.toFixed(2)}`;
-        const refundInput = document.getElementById('refundAmount');
-        refundInput.max = String(refundable);
-    };
-
-    window.toggleAdjustmentFields = () => {
-        const isRefund = document.getElementById('adjustmentType')?.value === 'refund';
-        document.getElementById('refundAmountGroup')?.classList.toggle('hidden', !isRefund);
-        const input = document.getElementById('refundAmount');
-        if (input) input.required = isRefund;
-    };
-
-    window.renderCancellationUI = () => {
-        window.refreshAdjustmentOrderOptions();
-        const body = document.getElementById('adjustmentTableBody');
-        const count = document.getElementById('adjustmentCount');
-        if (!body || !count) return;
-        const events = [...window.allOrderEvents].sort((a, b) => getTimestampMs(b.data.created_at) - getTimestampMs(a.data.created_at));
-        count.textContent = `${events.length} 筆`;
-        body.innerHTML = events.length ? events.map(item => {
-            const data = item.data;
-            const typeLabel = data.action_type === 'refund'
-                ? '<span class="text-rose-700 font-bold">💸 退款</span>'
-                : '<span class="text-orange-700 font-bold">🚫 取消出團</span>';
-            const amount = data.action_type === 'refund'
-                ? `${getOrderCurrencySymbol(data.currency)} ${Number(data.amount || 0).toFixed(2)}`
-                : '—';
-            return `<tr class="hover:bg-slate-50">
-                <td class="p-3 text-xs">${data.action_date || '-'}</td>
-                <td class="p-3 font-bold text-sky-700">${data.order_number || '-'}</td>
-                <td class="p-3"><span class="font-bold block">${data.customer || '-'}</span><span class="text-xs text-orange-600">${data.departure_time || '-'}</span></td>
-                <td class="p-3">${typeLabel}</td>
-                <td class="p-3 text-right font-bold text-rose-700">${amount}</td>
-                <td class="p-3 text-xs"><span class="font-bold">${data.reason || '-'}</span><br><span class="text-slate-500">${data.note || ''}</span></td>
-            </tr>`;
-        }).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400">尚無取消或退款紀錄</td></tr>';
-    };
-
-    document.getElementById('adjustmentOrderId').addEventListener('change', window.updateSelectedOrderSummary);
-    document.getElementById('adjustmentType').addEventListener('change', window.toggleAdjustmentFields);
-    document.getElementById('adjustmentDate').value = window.getTodayFormatted();
-    window.toggleAdjustmentFields();
-
-    document.getElementById('adjustmentForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const item = getSelectedAdjustmentOrder();
-        if (!item) return alert('請先選擇已成立訂單。');
-
-        const type = document.getElementById('adjustmentType').value;
-        const actionDate = document.getElementById('adjustmentDate').value;
-        const reason = document.getElementById('adjustmentReason').value.trim();
-        const note = document.getElementById('adjustmentNote').value.trim();
-        const refundAmount = type === 'refund' ? Number(document.getElementById('refundAmount').value) : 0;
-        if (!reason) return alert('請輸入異動原因。');
-        if (type === 'refund' && (!refundAmount || refundAmount <= 0)) return alert('請輸入有效退款金額。');
-        if (type === 'cancel_trip' && item.data.order_status === 'cancelled') return alert('此訂單已取消出團，不能重複取消。');
-
-        const btn = document.getElementById('adjustmentSubmitBtn');
-        btn.disabled = true;
-        btn.innerText = '處理中...';
-        try {
-            await callRpcDirect('record_order_adjustment', {
-                p_order_id: item.id,
-                p_action_type: type,
-                p_action_date: actionDate,
-                p_amount: refundAmount,
-                p_reason: reason,
-                p_note: note
-            }, 20000);
-            await withTimeout(loadAllData(), 12000, '重新整理異動資料');
-
-            alert(type === 'refund' ? '退款紀錄已新增。' : '訂單已標記為取消出團。');
-            document.getElementById('adjustmentForm').reset();
-            document.getElementById('adjustmentDate').value = window.getTodayFormatted();
-            window.toggleAdjustmentFields();
-            window.renderCancellationUI();
-        } catch (error) {
-            console.error(error);
-            if ((error?.message || '').includes('REFUND_EXCEEDS_BALANCE')) alert('退款金額超過尚可退款餘額。');
-            else if ((error?.message || '').includes('ALREADY_CANCELLED')) alert('此訂單已取消出團。');
-            else alert(`異動寫入失敗：${error?.message || '請確認資料權限與網路連線'}`);
-        } finally {
-            btn.disabled = false;
-            btn.innerText = '確認新增異動';
-        }
-    });
-
-    const dateInRange = (dateValue, startDate, endDate) => {
-        if (!dateValue) return false;
-        const d = String(dateValue).slice(0, 10);
-        return (!startDate || d >= startDate) && (!endDate || d <= endDate);
-    };
-
-    const getAccountingMeta = (data) => {
-        const isPaid = (data.payment_status === 'paid') || (!data.payment_status && data.status === 'completed');
-        const isPayablePaid = data.payable_status === 'paid' || Number(data.cost || 0) <= 0;
-        const arDueEstimated = !data.receivable_due_date;
-        const apDueEstimated = !data.payable_due_date;
-        const paymentDateEstimated = isPaid && !data.payment_date;
-        const payablePaidDateEstimated = isPayablePaid && Number(data.cost || 0) > 0 && !data.payable_paid_date;
-        return {
-            isPaid,
-            isPayablePaid,
-            arDue: data.receivable_due_date || data.departure_time || data.order_date || '',
-            paymentDate: data.payment_date || (isPaid ? (data.order_date || data.departure_time || '') : ''),
-            apDue: data.payable_due_date || data.departure_time || data.order_date || '',
-            payablePaidDate: data.payable_paid_date || (isPayablePaid ? (data.departure_time || data.order_date || '') : ''),
-            arDueEstimated, apDueEstimated, paymentDateEstimated, payablePaidDateEstimated
-        };
-    };
-
-    window.renderUI = () => {
-        document.getElementById('dash-mode-a').innerHTML = ''; document.getElementById('dash-mode-b').innerHTML = '';
-        document.getElementById('dash-mode-c').innerHTML = ''; document.getElementById('dash-mode-d').innerHTML = '';
-        document.getElementById('single-mode-list').innerHTML = ''; document.getElementById('report-table-body').innerHTML = '';
-        const profitBody = document.getElementById('profit-table-body'); if (profitBody) profitBody.innerHTML = '';
-        const accountingEventBody = document.getElementById('accounting-event-table-body'); if (accountingEventBody) accountingEventBody.innerHTML = '';
-        window.refreshAdjustmentOrderOptions();
-
-        window.allOrders.sort((a, b) => getTimestampMs(b.data.timestamp) - getTimestampMs(a.data.timestamp));
-
-        let reportCount = 0, totalUnpaid = 0, totalPaid = 0, reportRows = [];
-        const reportFilterStatus = document.getElementById('reportFilter')?.value || 'all';
-        const reportTimeType = document.getElementById('reportTimeType')?.value || 'all';
-        const reportMode = document.getElementById('reportModeFilter')?.value || 'all';
-        const reportMonth = document.getElementById('reportMonthPicker')?.value || '';
-        const reportDate = document.getElementById('reportDatePicker')?.value || '';
-
-        window.allOrders.forEach((docItem) => {
-            const data = docItem.data;
-            if (data.order_status === 'migrated') return;
-            const cardHTML = generateCardHTML(docItem);
-
-            if (window.currentTab === 'dashboard') {
-                if (data.mode === 'Mode_A') document.getElementById('dash-mode-a').innerHTML += cardHTML;
-                if (data.mode === 'Mode_B') document.getElementById('dash-mode-b').innerHTML += cardHTML;
-                if (data.mode === 'Mode_C') document.getElementById('dash-mode-c').innerHTML += cardHTML;
-                if (data.mode === 'Mode_D') document.getElementById('dash-mode-d').innerHTML += cardHTML;
-            }
-            if (['Mode_A', 'Mode_B', 'Mode_C', 'Mode_D'].includes(window.currentTab) && data.mode === window.currentTab) {
-                document.getElementById('single-mode-list').innerHTML += cardHTML;
-            }
-
-            if (window.currentTab === 'report') {
-                const isPaid = (data.payment_status === 'paid') || (!data.payment_status && data.status === 'completed');
-                const isClosed = (data.case_status === 'closed') || (!data.case_status && data.status === 'completed');
-                const passStatus = ((reportFilterStatus === 'all') || (reportFilterStatus === 'open' && !isClosed) || (reportFilterStatus === 'closed' && isClosed)) && data.order_status !== 'cancelled';
-                const passMode = reportMode === 'all' || data.mode === reportMode;
-                let passTime = true;
-                const dep = data.departure_time || '';
-                if (reportTimeType === 'month' && reportMonth) passTime = dep.startsWith(reportMonth);
-                if (reportTimeType === 'day' && reportDate) passTime = dep === reportDate;
-                if (passStatus && passMode && passTime) {
-                    const refundedTwd = Number(data.refund_total || 0) * (Number(data.fx_rate) || 1);
-                    const netTwd = Math.max(0, Number(data.twd || 0) - refundedTwd);
-                    reportCount++; if (isPaid) totalPaid += netTwd; else totalUnpaid += netTwd;
-                    reportRows.push(docItem);
-                }
-            }
-        });
-
-        if (window.currentTab === 'report') {
-            reportRows.sort((a, b) => (a.data.departure_time || '9999').localeCompare(b.data.departure_time || '9999'));
-            reportRows.forEach(docItem => {
-                const data = docItem.data;
-                const isPaid = (data.payment_status === 'paid') || (!data.payment_status && data.status === 'completed');
-                const isClosed = (data.case_status === 'closed') || (!data.case_status && data.status === 'completed');
-                const modeMap = { Mode_A: '自營', Mode_B: '轉出', Mode_C: '轉入', Mode_D: '門票飯店' };
-                const currType = data.currency || 'AUD'; const sym = { AUD: 'A$', CNY: '¥', TWD: 'NT$' }[currType] || 'A$';
-                const cDriver = data.cost_driver || 0; const cFuel = data.cost_fuel || 0; const cTicket = data.cost_ticket || 0;
-                document.getElementById('report-table-body').innerHTML += `
-                    <tr class="hover:bg-slate-50 border-b border-slate-200 transition">
-                        <td class="p-3 leading-tight">${isPaid?'<span class="text-emerald-600 font-bold block mb-1 text-[11px]">✅ 已收款</span>':'<span class="text-red-500 font-bold block mb-1 text-[11px]">❌ 未收款</span>'}${isClosed?'<span class="text-blue-600 font-bold block text-[11px]">📁 已結案</span>':'<span class="text-yellow-600 font-bold block text-[11px]">⏳ 未結案</span>'}</td>
-                        <td class="p-3 text-xs text-slate-500 font-bold">${modeMap[data.mode]}<br><span class="text-purple-600">${data.category || '—'}</span></td>
-                        <td class="p-3 font-bold text-sm"><span class="text-[10px] text-sky-700 block">${data.order_number || '舊資料'}</span>${data.customer} <span class="text-[10px] text-slate-400">(${data.pax}人)</span></td>
-                        <td class="p-3 text-xs"><span class="text-sky-600 font-bold block">接單 ${data.order_date || '-'}</span><span class="text-orange-600 font-bold block">出團 ${data.departure_time || '-'}</span></td>
-                        <td class="p-3 text-right"><span class="font-bold text-slate-800 text-sm block">${sym} ${Math.max(0, Number(data.amount || data.aud || 0) - Number(data.refund_total || 0)).toFixed(2)}</span>${Number(data.refund_total || 0) > 0 ? `<span class="text-[10px] text-rose-600 block">已退款 ${sym} ${Number(data.refund_total).toFixed(2)}</span>` : ''}<span class="text-xs text-red-500 font-bold block">成本: ${sym} ${data.cost || 0}</span><span class="text-[10px] text-red-400 block">(司:${cDriver} 油:${cFuel} 票:${cTicket})</span><p class="text-[10px] text-slate-500 mt-1">NT$ ${Number(data.twd || 0).toLocaleString()}</p></td>
-                        <td class="p-3 text-center no-print"><button onclick="editOrder('${docItem.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold">修改</button></td>
-                    </tr>`;
-            });
-            document.getElementById('rep-total-count').innerText = reportCount;
-            document.getElementById('rep-unpaid-sum').innerText = 'NT$ ' + Math.round(totalUnpaid).toLocaleString();
-            document.getElementById('rep-paid-sum').innerText = 'NT$ ' + Math.round(totalPaid).toLocaleString();
-        }
-
-        if (window.currentTab === 'profit-loss') {
-            const startDate = document.getElementById('plStartDate').value;
-            const endDate = document.getElementById('plEndDate').value;
-            const dateBasis = document.getElementById('plDateBasis').value;
-            const modeFilter = document.getElementById('plModeFilter').value;
-            const accountFilter = document.getElementById('plAccountFilter').value;
-            const modeMap = { Mode_A: '自營', Mode_B: '轉出', Mode_C: '轉入', Mode_D: '門票飯店' };
-
-            const periodEvents = window.allOrderEvents.filter(item => {
-                const d = item.data;
-                const order = window.allOrders.find(o => o.id === d.order_id || o.data.order_number === d.order_number);
-                return dateInRange(d.action_date, startDate, endDate) && (modeFilter === 'all' || order?.data?.mode === modeFilter);
-            }).sort((a,b) => String(a.data.action_date || '').localeCompare(String(b.data.action_date || '')));
-            const periodEventOrderIds = new Set(periodEvents.map(e => e.data.order_id || e.data.order_number));
-            const periodRefundByOrder = new Map();
-            let periodRefundTwd = 0, cancelCount = 0;
-            periodEvents.forEach(item => {
-                const e = item.data;
-                const order = window.allOrders.find(o => o.id === e.order_id || o.data.order_number === e.order_number);
-                const fx = Number(e.fx_rate || order?.data?.fx_rate || (e.currency === 'TWD' ? 1 : 1));
-                if (e.action_type === 'refund') {
-                    const twd = Number(e.amount || 0) * fx;
-                    periodRefundTwd += twd;
-                    const key = e.order_id || e.order_number;
-                    periodRefundByOrder.set(key, (periodRefundByOrder.get(key) || 0) + twd);
-                } else if (e.action_type === 'cancel_trip') cancelCount += 1;
-            });
-
-            let arTwd = 0, receivedTwd = 0, apTwd = 0, paidTwd = 0, cancelBalanceTwd = 0;
-            let plTotalRev = 0, plTotalCost = 0;
-            const rows = [];
-
-            window.allOrders.forEach(docItem => {
-                const data = docItem.data;
-                if (data.order_status === 'migrated') return;
-                if (modeFilter !== 'all' && data.mode !== modeFilter) return;
-                const meta = getAccountingMeta(data);
-                const fx = Number(data.fx_rate || 1);
-                const originalLocal = Number(data.amount || data.aud || 0);
-                const relatedEvents = window.allOrderEvents.filter(item => item.data.order_id === docItem.id || item.data.order_number === data.order_number);
-                const refundEvents = relatedEvents.filter(item => item.data.action_type === 'refund');
-                const refundEventsThroughEnd = refundEvents.filter(item => !endDate || !item.data.action_date || item.data.action_date <= endDate);
-                const refundLocal = refundEvents.length
-                    ? refundEventsThroughEnd.reduce((sum, item) => sum + Number(item.data.amount || 0), 0)
-                    : Number(data.refund_total || 0);
-                const cancelEvent = relatedEvents.filter(item => item.data.action_type === 'cancel_trip').sort((a,b) => String(a.data.action_date || '').localeCompare(String(b.data.action_date || '')))[0];
-                const cancelDate = data.cancelled_date || cancelEvent?.data?.action_date || '';
-                const isCancelled = data.order_status === 'cancelled' && (!endDate || !cancelDate || cancelDate <= endDate);
-                const isPaidAsOfEnd = meta.isPaid && (!endDate || !meta.paymentDate || meta.paymentDate <= endDate);
-                const isPayablePaidAsOfEnd = meta.isPayablePaid && (!endDate || !meta.payablePaidDate || meta.payablePaidDate <= endDate);
-                const netLocal = Math.max(0, originalLocal - refundLocal);
-                const originalTwd = Number(data.twd || originalLocal * fx);
-                const netTwd = Math.max(0, originalTwd - refundLocal * fx);
-                const costLocal = Number(data.cost || 0);
-                const costTwd = costLocal * fx;
-
-                const arInRange = dateInRange(meta.arDue, startDate, endDate);
-                const paymentInRange = dateInRange(meta.paymentDate, startDate, endDate);
-                const apInRange = dateInRange(meta.apDue, startDate, endDate);
-                const payablePaidInRange = dateInRange(meta.payablePaidDate, startDate, endDate);
-                const depInRange = dateInRange(data.departure_time, startDate, endDate);
-                const hasEventInRange = periodEventOrderIds.has(docItem.id) || periodEventOrderIds.has(data.order_number);
-
-                if (arInRange && !isPaidAsOfEnd && !isCancelled) arTwd += netTwd;
-                if (paymentInRange && meta.isPaid) receivedTwd += originalTwd;
-                if (apInRange && !isPayablePaidAsOfEnd) apTwd += costTwd;
-                if (payablePaidInRange && meta.isPayablePaid) paidTwd += costTwd;
-                if (isCancelled && isPaidAsOfEnd && dateInRange(cancelDate, startDate, endDate)) cancelBalanceTwd += netTwd;
-
-                if (depInRange) {
-                    const recognizedRevenue = (isCancelled && !isPaidAsOfEnd) ? 0 : netTwd;
-                    plTotalRev += recognizedRevenue;
-                    plTotalCost += costTwd;
-                }
-
-                let passBasis = false;
-                if (dateBasis === 'account') passBasis = arInRange || apInRange;
-                else if (dateBasis === 'departure') passBasis = depInRange;
-                else if (dateBasis === 'cash') passBasis = paymentInRange || payablePaidInRange || hasEventInRange;
-                else passBasis = arInRange || apInRange || depInRange || paymentInRange || payablePaidInRange || hasEventInRange;
-
-                let passAccount = true;
-                if (accountFilter === 'ar_unpaid') passAccount = !isPaidAsOfEnd && !isCancelled && netTwd > 0;
-                else if (accountFilter === 'ap_unpaid') passAccount = !isPayablePaidAsOfEnd && costTwd > 0;
-                else if (accountFilter === 'settled') passAccount = isPaidAsOfEnd || isPayablePaidAsOfEnd;
-                else if (accountFilter === 'refund') passAccount = refundLocal > 0 || hasEventInRange;
-                else if (accountFilter === 'cancelled') passAccount = isCancelled;
-                if (!passBasis || !passAccount) return;
-
-                const primaryDate = dateBasis === 'departure' ? data.departure_time : (dateBasis === 'cash' ? (meta.paymentDate || meta.payablePaidDate || '') : (meta.arDue || meta.apDue || data.departure_time || ''));
-                rows.push({ docItem, data, meta, fx, originalLocal, refundLocal, netLocal, originalTwd, netTwd, costLocal, costTwd, isCancelled, isPaidAsOfEnd, isPayablePaidAsOfEnd, cancelDate, primaryDate });
-            });
-
-            rows.sort((a,b) => String(a.primaryDate || '9999').localeCompare(String(b.primaryDate || '9999')));
-            rows.forEach(row => {
-                const { docItem, data, meta, fx, originalLocal, refundLocal, netLocal, netTwd, costLocal, costTwd, isCancelled, isPaidAsOfEnd, isPayablePaidAsOfEnd, cancelDate } = row;
-                const sym = getOrderCurrencySymbol(data.currency);
-                const recognizedRevenueTwd = (isCancelled && !isPaidAsOfEnd) ? 0 : netTwd;
-                const profitTwd = recognizedRevenueTwd - costTwd;
-                const estimate = '<span class="text-[9px] text-amber-600">（推估）</span>';
-                const arStatus = isCancelled ? '<span class="text-rose-700 font-bold">取消，不列應收</span>' : (isPaidAsOfEnd ? `<span class="text-emerald-700 font-bold">已收 ${meta.paymentDate || '-'}</span>` : '<span class="text-red-700 font-bold">未收</span>');
-                const apStatus = isPayablePaidAsOfEnd ? `<span class="text-orange-700 font-bold">已付 ${meta.payablePaidDate || '-'}</span>` : '<span class="text-red-700 font-bold">未付</span>';
-                document.getElementById('profit-table-body').innerHTML += `
-                    <tr class="hover:bg-slate-50 ${isCancelled ? 'bg-rose-50/40' : ''}">
-                        <td class="p-3">${isCancelled?'<span class="text-rose-700 font-bold block">🚫 已取消</span>':'<span class="text-emerald-700 font-bold block">✅ 有效訂單</span>'}<span class="text-slate-500 font-bold">${modeMap[data.mode] || data.mode}／${data.category || '—'}</span></td>
-                        <td class="p-3"><span class="text-sky-700 font-bold block">${data.order_number || '舊資料'}</span><span class="font-bold">${data.customer || '-'}</span></td>
-                        <td class="p-3 leading-5"><span class="text-sky-700 block">接單 ${data.order_date || '-'}</span><span class="text-orange-700 block">出團 ${data.departure_time || '-'}</span><span class="text-emerald-700 block">應收 ${meta.arDue || '-'} ${meta.arDueEstimated ? estimate : ''}</span><span class="text-red-700 block">應付 ${meta.apDue || '-'} ${meta.apDueEstimated ? estimate : ''}</span></td>
-                        <td class="p-3 text-right"><span class="font-bold text-emerald-700 block">應收 ${sym} ${netLocal.toFixed(2)}</span><span class="text-slate-500 block">NT$ ${Math.round(netTwd).toLocaleString()}</span><span class="block mt-1">${arStatus}${meta.paymentDateEstimated ? estimate : ''}</span></td>
-                        <td class="p-3 text-right"><span class="font-bold text-red-700 block">應付 ${sym} ${costLocal.toFixed(2)}</span><span class="text-slate-500 block">NT$ ${Math.round(costTwd).toLocaleString()}</span><span class="block mt-1">${apStatus}${meta.payablePaidDateEstimated ? estimate : ''}</span><span class="text-[9px] text-red-500 block">司:${data.cost_driver || 0} 油:${data.cost_fuel || 0} 票:${data.cost_ticket || 0}</span></td>
-                        <td class="p-3 text-right">${refundLocal > 0 ? `<span class="font-bold text-rose-700 block">累退 ${sym} ${refundLocal.toFixed(2)}</span><span class="text-slate-500">NT$ ${Math.round(refundLocal * fx).toLocaleString()}</span>` : '<span class="text-slate-400">無退款</span>'}${isCancelled ? `<span class="text-rose-700 font-bold block mt-1">取消日 ${cancelDate || '-'}</span>` : ''}</td>
-                        <td class="p-3 text-right ${profitTwd >= 0 ? 'text-emerald-700' : 'text-red-700'}"><span class="font-bold text-base">NT$ ${Math.round(profitTwd).toLocaleString()}</span><span class="text-[10px] block">淨營收 ${Math.round(recognizedRevenueTwd).toLocaleString()}－成本 ${Math.round(costTwd).toLocaleString()}</span></td>
-                    </tr>`;
-            });
-            if (!rows.length) document.getElementById('profit-table-body').innerHTML = '<tr><td colspan="7" class="p-10 text-center text-slate-400">此條件下沒有帳款明細</td></tr>';
-
-            periodEvents.forEach(item => {
-                const e = item.data;
-                const order = window.allOrders.find(o => o.id === e.order_id || o.data.order_number === e.order_number);
-                const fx = Number(e.fx_rate || order?.data?.fx_rate || (e.currency === 'TWD' ? 1 : 1));
-                const refundTwd = e.action_type === 'refund' ? Number(e.amount || 0) * fx : 0;
-                document.getElementById('accounting-event-table-body').innerHTML += `<tr class="hover:bg-rose-50"><td class="p-3">${e.action_date || '-'}</td><td class="p-3 font-bold text-sky-700">${e.order_number || '-'}</td><td class="p-3">${e.customer || '-'}</td><td class="p-3 font-bold ${e.action_type === 'refund' ? 'text-rose-700' : 'text-orange-700'}">${e.action_type === 'refund' ? '💸 退款' : '🚫 取消出團'}</td><td class="p-3 text-right font-bold text-rose-700">${e.action_type === 'refund' ? `${getOrderCurrencySymbol(e.currency)} ${Number(e.amount || 0).toFixed(2)}<br><span class="text-[10px] text-slate-500">NT$ ${Math.round(refundTwd).toLocaleString()}</span>` : '—'}</td><td class="p-3"><span class="font-bold">${e.reason || '-'}</span><br><span class="text-slate-500">${e.note || ''}</span></td></tr>`;
-            });
-            if (!periodEvents.length) document.getElementById('accounting-event-table-body').innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400">此區間無退款或取消紀錄</td></tr>';
-
-            const plProfit = plTotalRev - plTotalCost;
-            const netCash = receivedTwd - paidTwd - periodRefundTwd;
-            const money = v => 'NT$ ' + Math.round(v).toLocaleString();
-            document.getElementById('acct-ar').innerText = money(arTwd);
-            document.getElementById('acct-received').innerText = money(receivedTwd);
-            document.getElementById('acct-ap').innerText = money(apTwd);
-            document.getElementById('acct-paid').innerText = money(paidTwd);
-            document.getElementById('acct-refund').innerText = money(periodRefundTwd);
-            document.getElementById('acct-cancel-count').innerText = `${cancelCount} 筆`;
-            document.getElementById('acct-cancel-balance').innerText = money(cancelBalanceTwd);
-            document.getElementById('acct-net-cash').innerText = money(netCash);
-            document.getElementById('acct-net-cash').className = `text-xl font-bold ${netCash >= 0 ? 'text-sky-700' : 'text-red-700'}`;
-            document.getElementById('pl-rev-sum').innerText = money(plTotalRev);
-            document.getElementById('pl-cost-sum').innerText = money(plTotalCost);
-            document.getElementById('pl-profit-sum').innerText = money(plProfit);
-            document.getElementById('pl-profit-sum').className = `text-2xl font-bold ${plProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
-            document.getElementById('pl-margin').innerText = plTotalRev > 0 ? ((plProfit / plTotalRev) * 100).toFixed(1) + '%' : '0%';
-
-            window.currentAccountingExportRows = rows.map(row => {
-                const { data, meta, originalTwd, netTwd, costTwd, isCancelled, isPaidAsOfEnd, isPayablePaidAsOfEnd, primaryDate, refundLocal, fx } = row;
-                const refundTwd = refundLocal * fx;
-                const recognizedRevenueTwd = (isCancelled && !isPaidAsOfEnd) ? 0 : netTwd;
-                return {
-                    primaryDate, orderNumber: data.order_number || '', customer: data.customer || '', mode: modeMap[data.mode] || data.mode || '', currency: data.currency || '',
-                    arTwd: (!isPaidAsOfEnd && !isCancelled) ? Math.round(netTwd) : 0,
-                    receivedTwd: isPaidAsOfEnd ? Math.round(originalTwd) : 0,
-                    apTwd: !isPayablePaidAsOfEnd ? Math.round(costTwd) : 0,
-                    paidTwd: isPayablePaidAsOfEnd ? Math.round(costTwd) : 0,
-                    refundTwd: Math.round(refundTwd), cancelled: isCancelled,
-                    profitTwd: Math.round(recognizedRevenueTwd - costTwd), note: data.note || ''
-                };
-            });
-            window.currentAccountingExportEvents = periodEvents.map(item => {
-                const e = item.data;
-                const order = window.allOrders.find(o => o.id === e.order_id || o.data.order_number === e.order_number);
-                const fx = Number(e.fx_rate || order?.data?.fx_rate || (e.currency === 'TWD' ? 1 : 1));
-                return { type: e.action_type, date: e.action_date || '', orderNumber: e.order_number || '', customer: e.customer || '', currency: e.currency || '', refundTwd: e.action_type === 'refund' ? Math.round(Number(e.amount || 0) * fx) : 0, reason: e.reason || '', note: e.note || '' };
-            });
-        }
-    };
+    const text = await res.text();
+    let data = null;
+    if (text) { try { data = JSON.parse(text); } catch { data = text; } }
+    if (!res.ok) throw new Error(data?.message || data?.hint || text || `HTTP ${res.status}`);
+    return data;
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error('連線超過20秒，已中止。');
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+
+function showLogin(message='') {
+  $('loginScreen').classList.remove('hidden');
+  $('app').classList.add('hidden');
+  if (message) { $('loginError').textContent = message; $('loginError').classList.remove('hidden'); }
+}
+
+async function handleSession(session) {
+  accessToken = session?.access_token || '';
+  currentUser = session?.user || null;
+  if (!session?.user) { showLogin(); return; }
+  const status = await api('/rest/v1/rpc/my_access_status', { method:'POST', body:'{}' });
+  if (!status?.active) {
+    await supabase.auth.signOut();
+    showLogin('此帳號尚未啟用，請聯絡管理員。');
+    return;
+  }
+  $('loginScreen').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('statusText').textContent = `已登入：${session.user.email}（${status.role}）`;
+  await loadAll();
+}
+
+function scheduleSession(session) {
+  const seq = ++authSequence;
+  setTimeout(async()=>{
+    if (seq !== authSequence) return;
+    try { await handleSession(session); }
+    catch(e) { console.error(e); showLogin(`系統初始化失敗：${e.message}`); }
+  },0);
+}
+
+supabase.auth.onAuthStateChange((_event,session)=>scheduleSession(session));
+const initial = await supabase.auth.getSession();
+if (initial.data.session) scheduleSession(initial.data.session); else showLogin();
+
+$('loginBtn').addEventListener('click', async()=>{
+  const email = $('loginEmail').value.trim(), password = $('loginPassword').value;
+  if (!email || !password) return showLogin('請輸入帳號與密碼。');
+  const btn = $('loginBtn'); btn.disabled=true; btn.textContent='登入中...';
+  try {
+    const { error } = await withTimeout(supabase.auth.signInWithPassword({email,password}),15000,'登入');
+    if (error) throw error;
+    if ($('rememberMe').checked) localStorage.setItem('travelV3Email',email); else localStorage.removeItem('travelV3Email');
+    $('loginError').classList.add('hidden');
+  } catch(e) { showLogin(`登入失敗：${e.message}`); }
+  finally { btn.disabled=false; btn.textContent='登入系統'; }
+});
+
+$('registerBtn').addEventListener('click', async()=>{
+  const email=$('loginEmail').value.trim(), password=$('loginPassword').value;
+  if (!email || password.length<6) return showLogin('請輸入有效Email，密碼至少6碼。');
+  const btn=$('registerBtn'); btn.disabled=true; btn.textContent='建立中...';
+  try {
+    const {data,error}=await withTimeout(supabase.auth.signUp({email,password}),15000,'建立帳號');
+    if(error) throw error;
+    showLogin(data.session ? '帳號已建立。' : '帳號已建立，請先到信箱完成驗證。');
+  } catch(e){ showLogin(`建立失敗：${e.message}`); }
+  finally { btn.disabled=false; btn.textContent='首次使用／建立帳號'; }
+});
+
+$('logoutBtn').addEventListener('click',()=>supabase.auth.signOut());
+window.addEventListener('DOMContentLoaded',()=>{ const email=localStorage.getItem('travelV3Email'); if(email){$('loginEmail').value=email;$('rememberMe').checked=true;} });
+
+async function loadAll() {
+  const [orders,events,entries] = await Promise.all([
+    api('/rest/v1/orders?select=*&order=timestamp.desc'),
+    api('/rest/v1/order_events?select=*&order=created_at.desc'),
+    api('/rest/v1/finance_entries?select=*&order=entry_date.desc,created_at.desc')
+  ]);
+  allOrders = orders || [];
+  orderEvents = events || [];
+  financeEntries = entries || [];
+  renderOrderList(); renderFinanceList(); renderReport();
+}
+
+function setTab(name) {
+  document.querySelectorAll('.tabPanel').forEach(p=>p.classList.add('hidden'));
+  $(`tab-${name}`).classList.remove('hidden');
+  document.querySelectorAll('.mainTab').forEach(b=>{
+    const active=b.dataset.tab===name;
+    b.className=`mainTab rounded-lg px-4 py-2 text-sm font-bold ${active?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}`;
+  });
+  if(name==='reports') renderReport();
+}
+document.querySelectorAll('.mainTab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+
+const categories=['all','接送機','一日遊','多日遊','包車','門票','飯店販售','未分類'];
+function renderCategoryButtons(){
+  $('categoryButtons').innerHTML=categories.map(c=>`<button data-cat="${c}" class="catBtn rounded-full px-3 py-1.5 text-xs font-bold ${activeCategory===c?'bg-blue-600 text-white':'bg-slate-100 text-slate-600'}">${c==='all'?'全部':c}</button>`).join('');
+  document.querySelectorAll('.catBtn').forEach(b=>b.addEventListener('click',()=>{activeCategory=b.dataset.cat;renderCategoryButtons();renderOrderList();}));
+}
+renderCategoryButtons();
+
+function orderRefundTwd(o, end='9999-12-31') {
+  return orderEvents.filter(e=>e.order_id===o.id && e.action_type==='refund' && (!end || e.action_date<=end)).reduce((s,e)=>s+num(e.amount)*num(e.fx_rate||o.fx_rate||1),0);
+}
+function salesTwd(o){ return num(o.sales_total_twd || o.twd); }
+function receivedTwd(o){ return num(o.received_twd || (o.payment_status==='paid'?o.twd:0)); }
+function costTwd(o){ return num(o.cost_total_twd || (num(o.cost)*num(o.fx_rate||1))); }
+function paidTwd(o){ return num(o.paid_twd || (o.payable_status==='paid'?costTwd(o):0)); }
+function arTwd(o){ return Math.max(0,salesTwd(o)-receivedTwd(o)-orderRefundTwd(o)); }
+function apTwd(o){ return Math.max(0,costTwd(o)-paidTwd(o)); }
+
+function filteredOrders(){
+  const search=$('orderSearch').value.trim().toLowerCase();
+  const mode=$('modeFilter').value, status=$('statusFilter').value;
+  const dateField=$('dateFieldFilter').value, start=$('listStartDate').value, end=$('listEndDate').value;
+  return allOrders.filter(o=>{
+    const cat=o.category||'未分類';
+    if(activeCategory!=='all' && cat!==activeCategory) return false;
+    if(mode!=='all' && o.mode!==mode) return false;
+    if(status==='active' && o.order_status==='cancelled') return false;
+    if(status==='cancelled' && o.order_status!=='cancelled') return false;
+    if(status==='unpaid' && arTwd(o)<=0) return false;
+    if(status==='unpayable' && apTwd(o)<=0) return false;
+    if((start||end) && !dateInRange(o[dateField],start,end)) return false;
+    if(search){ const hay=[o.order_number,o.external_order_number,o.customer,o.agent_name,o.note,o.special_info,o.category].join(' ').toLowerCase(); if(!hay.includes(search)) return false; }
+    return true;
+  });
+}
+
+function renderOrderList(){
+  const rows=filteredOrders();
+  $('metricCount').textContent=rows.length.toLocaleString();
+  $('metricSales').textContent=Math.round(rows.reduce((s,o)=>s+salesTwd(o),0)).toLocaleString();
+  $('metricReceived').textContent=Math.round(rows.reduce((s,o)=>s+receivedTwd(o),0)).toLocaleString();
+  $('metricAr').textContent=Math.round(rows.reduce((s,o)=>s+arTwd(o),0)).toLocaleString();
+  $('metricAp').textContent=Math.round(rows.reduce((s,o)=>s+apTwd(o),0)).toLocaleString();
+  $('orderEmpty').classList.toggle('hidden',rows.length>0);
+  $('orderListBody').innerHTML=rows.map(o=>{
+    const cancelled=o.order_status==='cancelled';
+    return `<tr class="border-b border-slate-100 hover:bg-slate-50 ${cancelled?'opacity-60':''}">
+      <td class="p-3"><b class="text-blue-700">${esc(o.order_number)}</b><div class="text-[11px] text-slate-500">${esc(o.external_order_number||'-')} ${o.agent_name?`／${esc(o.agent_name)}`:''}</div></td>
+      <td class="p-3"><b>${esc(o.departure_time||'-')}</b><div class="text-[11px] text-slate-500">${esc(o.category||'未分類')}／${esc(o.service_time||'')}</div></td>
+      <td class="p-3"><b>${esc(o.customer)}</b><div class="max-w-[260px] truncate text-[11px] text-slate-500">${esc(o.note||'')}</div></td>
+      <td class="p-3 text-right"><b>${money(salesTwd(o))}</b><div class="text-[11px] text-slate-500">${esc(o.currency)} ${num(o.amount).toLocaleString()}</div></td>
+      <td class="p-3 text-right"><b class="text-emerald-700">${money(receivedTwd(o))}</b><div class="text-[11px] ${arTwd(o)>0?'text-amber-700':'text-slate-400'}">應收 ${money(arTwd(o))}</div></td>
+      <td class="p-3 text-right"><b>${money(costTwd(o))}</b><div class="text-[11px] ${apTwd(o)>0?'text-red-700':'text-slate-400'}">應付 ${money(apTwd(o))}</div></td>
+      <td class="p-3"><span class="rounded-full px-2 py-1 text-[11px] font-bold ${cancelled?'bg-red-100 text-red-700':o.case_status==='closed'?'bg-slate-200 text-slate-700':'bg-emerald-100 text-emerald-700'}">${cancelled?'已取消':o.case_status==='closed'?'已結案':'進行中'}</span></td>
+      <td class="p-3 text-right whitespace-nowrap"><button data-edit="${esc(o.id)}" class="editBtn rounded bg-blue-50 px-2 py-1 font-bold text-blue-700">編輯</button> <button data-refund="${esc(o.id)}" class="refundBtn rounded bg-amber-50 px-2 py-1 font-bold text-amber-700">退款</button> <button data-cancel="${esc(o.id)}" class="cancelBtn rounded bg-red-50 px-2 py-1 font-bold text-red-700">取消</button> <button data-delete="${esc(o.id)}" class="deleteBtn rounded bg-slate-100 px-2 py-1 font-bold">刪除</button></td>
+    </tr>`;
+  }).join('');
+  document.querySelectorAll('.editBtn').forEach(b=>b.addEventListener('click',()=>editOrder(b.dataset.edit)));
+  document.querySelectorAll('.refundBtn').forEach(b=>b.addEventListener('click',()=>refundOrder(b.dataset.refund)));
+  document.querySelectorAll('.cancelBtn').forEach(b=>b.addEventListener('click',()=>cancelOrder(b.dataset.cancel)));
+  document.querySelectorAll('.deleteBtn').forEach(b=>b.addEventListener('click',()=>deleteOrder(b.dataset.delete)));
+}
+['orderSearch','modeFilter','statusFilter','dateFieldFilter','listStartDate','listEndDate'].forEach(id=>$(id).addEventListener('input',renderOrderList));
+$('clearListFilter').addEventListener('click',()=>{$('listStartDate').value='';$('listEndDate').value='';renderOrderList();});
+$('refreshBtn').addEventListener('click',loadAll);
+
+function resetOrder(){
+  $('orderForm').reset(); $('editingId').value=''; $('orderNumber').value='儲存時自動產生'; $('formHeading').textContent='新增訂單'; $('orderStatusDisplay').value='有效';
+  $('orderDate').value=today(); $('departureDate').value=today(); $('revenueRecognitionDate').value=today(); $('receivableDueDate').value=today(); $('payableDueDate').value=today(); $('pax').value=1; $('currency').value='AUD'; $('fxRate').value=23; $('taxInclusive').value='true'; $('salesTaxType').value='unclassified'; $('receiptType').value='unpaid'; $('costTaxType').value='unclassified'; $('caseStatus').value='open'; $('rawOrderText').value=''; $('parseMessage').classList.add('hidden'); calculateFinancials();
+}
+$('resetOrderBtn').addEventListener('click',resetOrder);
+
+function calculateFinancials(source='auto'){
+  const unit=num($('unitPrice').value), pax=Math.max(1,num($('pax').value));
+  if(unit>0 && source!=='amount') $('amount').value=round2(unit*pax);
+  const foreign=num($('amount').value), fx=num($('fxRate').value||1), base=round2(foreign*fx);
+  const taxType=$('salesTaxType').value, inclusive=$('taxInclusive').value==='true';
+  let ex=base,tax=0,total=base;
+  if(taxType==='taxable'){
+    if(inclusive){ ex=round2(base/1.05); tax=round2(base-ex); total=base; }
+    else { ex=base; tax=round2(base*.05); total=round2(base+tax); }
+  }
+  $('salesExTaxTwd').value=ex; $('outputTaxTwd').value=tax; $('salesTotalTwd').value=total;
+  if(!$('revenueRecognitionDate').value) $('revenueRecognitionDate').value=$('departureDate').value;
+  if(!$('receivableDueDate').value) $('receivableDueDate').value=$('departureDate').value;
+  if(!$('payableDueDate').value) $('payableDueDate').value=$('departureDate').value;
+  if($('receivedAmount').value && document.activeElement!==$('receivedTwd')) $('receivedTwd').value=round2(num($('receivedAmount').value)*fx);
+  if($('prepaymentAmount').value && document.activeElement!==$('prepaymentTwd')) $('prepaymentTwd').value=round2(num($('prepaymentAmount').value)*fx);
+  const ar=Math.max(0,total-num($('receivedTwd').value));
+  const ap=Math.max(0,num($('costTotalTwd').value)-num($('paidTwd').value));
+  $('receivablePreview').textContent=money(ar); $('payablePreview').textContent=money(ap);
+  $('saveSalesPreview').textContent=money(total); $('saveCostPreview').textContent=money($('costTotalTwd').value); $('saveProfitPreview').textContent=money(ex-num($('costExTaxTwd').value||$('costTotalTwd').value));
+}
+['unitPrice','pax','fxRate','currency','salesTaxType','taxInclusive','receivedAmount','receivedTwd','prepaymentAmount','prepaymentTwd','costTotalTwd','costExTaxTwd','paidTwd','departureDate'].forEach(id=>$(id).addEventListener('input',()=>calculateFinancials()));
+$('amount').addEventListener('input',()=>calculateFinancials('amount'));
+$('currency').addEventListener('change',()=>{ const c=$('currency').value; if(c==='AUD')$('fxRate').value=23; if(c==='CNY')$('fxRate').value=4.65; if(c==='TWD')$('fxRate').value=1; calculateFinancials(); });
+$('receiptType').addEventListener('change',()=>{ if($('receiptType').value==='full'){ $('receivedAmount').value=$('amount').value; $('receiptDate').value=$('receiptDate').value||today(); } if($('receiptType').value==='prepayment'){ $('prepaymentAmount').value=$('receivedAmount').value; } calculateFinancials(); });
+$('costTaxType').addEventListener('change',()=>{ const total=num($('costTotalTwd').value); if($('costTaxType').value==='deductible'){ const ex=round2(total/1.05); $('costExTaxTwd').value=ex; $('inputTaxTwd').value=round2(total-ex); } else { $('costExTaxTwd').value=total; $('inputTaxTwd').value=0; } calculateFinancials(); });
+
+function collectOrder(){
+  return {
+    id:$('editingId').value||null, mode:$('mode').value, category:$('category').value, customer:$('customer').value.trim(), external_order_number:$('externalOrderNumber').value.trim(), agent_name:$('agentName').value.trim(), order_date:$('orderDate').value, departure_time:$('departureDate').value, service_time:$('serviceTime').value, pax:num($('pax').value), note:$('tripDetail').value.trim(), special_info:$('specialInfo').value.trim(), contact_phone:$('contactPhone').value.trim(), contact_email:$('contactEmail').value.trim(), pickup_location:$('pickupLocation').value.trim(), pickup_address:$('pickupAddress').value.trim(), dropoff_address:$('dropoffAddress').value.trim(), flight_info:$('flightInfo').value.trim(),
+    currency:$('currency').value, fx_rate:num($('fxRate').value), unit_price:$('unitPrice').value||'', amount:num($('amount').value), sales_tax_type:$('salesTaxType').value, tax_inclusive:$('taxInclusive').value==='true', sales_ex_tax_twd:num($('salesExTaxTwd').value), output_tax_twd:num($('outputTaxTwd').value), sales_total_twd:num($('salesTotalTwd').value), revenue_recognition_date:$('revenueRecognitionDate').value, invoice_status:$('invoiceStatus').value, invoice_date:$('invoiceDate').value, invoice_number:$('invoiceNumber').value.trim(), buyer_tax_id:$('buyerTaxId').value.trim(), buyer_name:$('buyerName').value.trim(),
+    receipt_type:$('receiptType').value, received_amount:num($('receivedAmount').value), received_twd:num($('receivedTwd').value), prepayment_amount:num($('prepaymentAmount').value), prepayment_twd:num($('prepaymentTwd').value), receipt_date:$('receiptDate').value, payment_method:$('paymentMethod').value, receipt_account:$('receiptAccount').value.trim(), receivable_due_date:$('receivableDueDate').value,
+    supplier_name:$('supplierName').value.trim(), cost_tax_type:$('costTaxType').value, cost_ex_tax_twd:num($('costExTaxTwd').value), input_tax_twd:num($('inputTaxTwd').value), cost_total_twd:num($('costTotalTwd').value), paid_twd:num($('paidTwd').value), supplier_prepayment_twd:num($('supplierPrepaymentTwd').value), cost_document_type:$('costDocumentType').value, cost_document_number:$('costDocumentNumber').value.trim(), cost_document_date:$('costDocumentDate').value, cost_recognition_date:$('costRecognitionDate').value, payment_account:$('paymentAccount').value.trim(), payable_due_date:$('payableDueDate').value, payable_paid_date:$('payablePaidDate').value,
+    case_status:$('caseStatus').value, accounting_note:$('accountingNote').value.trim(), cost_driver:0, cost_fuel:0, cost_ticket:0, cost_total_foreign:0
+  };
+}
+
+$('orderForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const payload=collectOrder();
+  if(!payload.customer||!payload.order_date||!payload.departure_time||payload.amount<=0) return alert('請確認旅客姓名、接單日期、出團日期與訂單總額。');
+  const btn=$('saveOrderBtn'); btn.disabled=true; btn.textContent='寫入中...';
+  try{
+    const result=await api('/rest/v1/rpc/save_order_v3',{method:'POST',body:JSON.stringify({p_order:payload})});
+    alert(`訂單已${result.updated?'更新':'建立'}：${result.orderNumber}`);
+    resetOrder(); await loadAll();
+  }catch(e){ alert(`寫入失敗：${e.message}`); }
+  finally{btn.disabled=false;btn.textContent='儲存訂單';}
+});
+
+function editOrder(id){
+  const o=allOrders.find(x=>x.id===id); if(!o)return;
+  setTab('orders'); $('editingId').value=o.id; $('orderNumber').value=o.order_number; $('formHeading').textContent=`編輯 ${o.order_number}`; $('orderStatusDisplay').value=o.order_status==='cancelled'?'已取消':'有效';
+  const map={mode:'mode',category:'category',customer:'customer',external_order_number:'externalOrderNumber',agent_name:'agentName',order_date:'orderDate',departure_time:'departureDate',service_time:'serviceTime',pax:'pax',note:'tripDetail',special_info:'specialInfo',contact_phone:'contactPhone',contact_email:'contactEmail',pickup_location:'pickupLocation',pickup_address:'pickupAddress',dropoff_address:'dropoffAddress',flight_info:'flightInfo',currency:'currency',fx_rate:'fxRate',unit_price:'unitPrice',amount:'amount',sales_tax_type:'salesTaxType',sales_ex_tax_twd:'salesExTaxTwd',output_tax_twd:'outputTaxTwd',sales_total_twd:'salesTotalTwd',revenue_recognition_date:'revenueRecognitionDate',invoice_status:'invoiceStatus',invoice_date:'invoiceDate',invoice_number:'invoiceNumber',buyer_tax_id:'buyerTaxId',buyer_name:'buyerName',receipt_type:'receiptType',received_amount:'receivedAmount',received_twd:'receivedTwd',prepayment_amount:'prepaymentAmount',prepayment_twd:'prepaymentTwd',receipt_date:'receiptDate',payment_method:'paymentMethod',receipt_account:'receiptAccount',receivable_due_date:'receivableDueDate',supplier_name:'supplierName',cost_tax_type:'costTaxType',cost_ex_tax_twd:'costExTaxTwd',input_tax_twd:'inputTaxTwd',cost_total_twd:'costTotalTwd',paid_twd:'paidTwd',supplier_prepayment_twd:'supplierPrepaymentTwd',cost_document_type:'costDocumentType',cost_document_number:'costDocumentNumber',cost_document_date:'costDocumentDate',cost_recognition_date:'costRecognitionDate',payment_account:'paymentAccount',payable_due_date:'payableDueDate',payable_paid_date:'payablePaidDate',case_status:'caseStatus',accounting_note:'accountingNote'};
+  Object.entries(map).forEach(([key,id2])=>{ if($(id2))$(id2).value=o[key]??''; });
+  $('taxInclusive').value=String(o.tax_inclusive!==false); calculateFinancials('amount'); window.scrollTo({top:0,behavior:'smooth'});
+}
+window.editOrder=editOrder;
+
+async function deleteOrder(id){ if(!confirm('確定刪除這筆訂單？此動作無法復原。'))return; try{await api(`/rest/v1/orders?id=eq.${encodeURIComponent(id)}`,{method:'DELETE'});await loadAll();}catch(e){alert(`刪除失敗：${e.message}`);} }
+async function refundOrder(id){
+  const o=allOrders.find(x=>x.id===id); if(!o)return;
+  const amount=prompt(`退款金額（${o.currency}），剩餘可退約 ${Math.max(0,num(o.amount)-num(o.refund_total))}`); if(amount===null)return;
+  const reason=prompt('退款原因'); if(!reason)return;
+  try{await api('/rest/v1/rpc/record_order_adjustment',{method:'POST',body:JSON.stringify({p_order_id:id,p_action_type:'refund',p_action_date:today(),p_amount:num(amount),p_reason:reason,p_note:''})});await loadAll();}catch(e){alert(`退款失敗：${e.message}`);}
+}
+async function cancelOrder(id){
+  const o=allOrders.find(x=>x.id===id); if(!o||o.order_status==='cancelled')return alert('此訂單已取消。');
+  const reason=prompt('取消原因'); if(!reason)return;
+  try{await api('/rest/v1/rpc/record_order_adjustment',{method:'POST',body:JSON.stringify({p_order_id:id,p_action_type:'cancel_trip',p_action_date:today(),p_amount:0,p_reason:reason,p_note:''})});await loadAll();}catch(e){alert(`取消失敗：${e.message}`);}
+}
+
+function getLabel(text,labels){ const escaped=labels.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'); const m=text.match(new RegExp(`^(?:${escaped})\\s*[：:]\\s*(.+)$`,'mi')); return m?m[1].trim():''; }
+function normalizeDate(v){
+  if(!v)return''; const t=v.trim(); let m=t.match(/(20\d{2})[\/\.年-](\d{1,2})[\/\.月-](\d{1,2})/); if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=t.match(/(\d{1,2})\s*[\/\.月-]\s*(\d{1,2})/); if(m){let y=new Date().getFullYear();const d=new Date(y,+m[1]-1,+m[2]);if(d<new Date(Date.now()-180*86400000))y++;return`${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;} return'';
+}
+function parseLineOrder(){
+  const raw=$('rawOrderText').value.trim(); if(!raw)return alert('請先貼上LINE文字。'); const warnings=[];
+  const agent=getLabel(raw,['代理','訂單來源','來源']); if(agent){$('agentName').value=agent;$('mode').value='Mode_C';}
+  if(/來自\s*Gold Ocean Tour/i.test(raw)){ $('agentName').value='Gold Ocean Tour'; $('mode').value='Mode_C'; }
+  const ext=getLabel(raw,['外部單號','訂單編號','訂單詳情']); if(ext)$('externalOrderNumber').value=(ext.match(/[A-Z0-9-]{6,}/i)||[ext])[0];
+  const customer=getLabel(raw,['旅客姓名','姓名','中英文姓名','主要聯繫人']); if(customer)$('customer').value=customer;
+  const date=normalizeDate(getLabel(raw,['出團日期','日期','出發時間','使用日期','入住日期'])); if(date){$('departureDate').value=date;$('revenueRecognitionDate').value=date;$('receivableDueDate').value=date;$('payableDueDate').value=date;} else warnings.push('未辨識出團日期');
+  const orderDate=normalizeDate(getLabel(raw,['接單日期','下單日期'])); if(orderDate)$('orderDate').value=orderDate;
+  const trip=getLabel(raw,['行程','行程詳情','產品']); if(trip){$('tripDetail').value=trip; if(/接機|送機|機場接送/.test(trip))$('category').value='接送機'; else if(/飯店|住宿/.test(trip))$('category').value='飯店販售'; else if(/門票|船票|煙火船/.test(trip))$('category').value='門票'; else if(/包車/.test(trip))$('category').value='包車'; else $('category').value='一日遊';}
+  const paxText=getLabel(raw,['人數','數量']); const pm=paxText.match(/\d+/g); if(pm)$('pax').value=pm.reduce((s,x)=>s+num(x),0);
+  const totalText=getLabel(raw,['總額','共計','費用']); let tm=totalText.match(/(?:=|共計\s*)?\s*([\d,.]+)\s*(?:澳|AUD|澳幣|澳币)?\s*$/i); if(tm)$('amount').value=tm[1].replace(/,/g,'');
+  const allTotal=raw.match(/(?:共計|總額)\s*[：:]?\s*[^\n=]*=\s*([\d,.]+)/i); if(allTotal)$('amount').value=allTotal[1].replace(/,/g,'');
+  const unit=raw.match(/(?:每位|單價|成人)\s*[：:]?\s*(?:A\$)?\s*([\d.]+)/i); if(unit)$('unitPrice').value=unit[1];
+  if(/澳|AUD|A\$/i.test(raw))$('currency').value='AUD'; else if(/台幣|TWD|NT\$/i.test(raw))$('currency').value='TWD'; else if(/人民幣|CNY|RMB/i.test(raw))$('currency').value='CNY';
+  const st=getLabel(raw,['服務時間','出發時間','集合時間','備注','備註']); const time=st.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i); if(time){let h=+time[1];if(/pm/i.test(time[3]||'')&&h<12)h+=12;if(/am/i.test(time[3]||'')&&h===12)h=0;$('serviceTime').value=`${String(h).padStart(2,'0')}:${time[2]}`;}
+  const phone=raw.match(/(?:電話|手機)\s*[：:]\s*([+＋\d\s-]{8,})/); if(phone)$('contactPhone').value=phone[1].replace('＋','+').trim();
+  const email=raw.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/); if(email)$('contactEmail').value=email[0];
+  const address=getLabel(raw,['出發地址','接送地址','集合地址','地址']); if(address)$('pickupAddress').value=address;
+  const pickup=getLabel(raw,['集合','巴士集合','集合地點']); if(pickup)$('pickupLocation').value=pickup;
+  const flight=getLabel(raw,['航班資訊','航班','起飛時間']); if(flight)$('flightInfo').value=flight;
+  const special=getLabel(raw,['特殊資訊','加購','備注','備註']); if(special)$('specialInfo').value=special;
+  $('note').value=raw;
+  calculateFinancials('amount');
+  $('parseMessage').className=`mt-2 rounded-lg p-2 text-xs ${warnings.length?'bg-amber-100 text-amber-800':'bg-emerald-100 text-emerald-800'}`; $('parseMessage').textContent=warnings.length?`已解析，請確認：${warnings.join('、')}`:'已完成解析，請核對金額、日期與稅別。'; $('parseMessage').classList.remove('hidden');
+}
+$('parseBtn').addEventListener('click',parseLineOrder);
+
+const reportDefs=[['401','401試算'],['prepayment','預收報表'],['payable','應付報表'],['pnl','損益表'],['balance','資產負債表'],['cashflow','現金流量表']];
+function renderReportButtons(){ $('reportButtons').innerHTML=reportDefs.map(([k,n])=>`<button data-report="${k}" class="reportBtn rounded-lg px-3 py-2 text-xs font-bold ${activeReport===k?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${n}</button>`).join(''); document.querySelectorAll('.reportBtn').forEach(b=>b.addEventListener('click',()=>{activeReport=b.dataset.report;renderReportButtons();renderReport();})); }
+renderReportButtons();
+function reportRange(){ return {start:$('reportStartDate').value,end:$('reportEndDate').value}; }
+function reportTitle(title,subtitle=''){ return `<div class="mb-5"><h3 class="text-2xl font-black">${title}</h3><p class="mt-1 text-xs text-slate-500">${subtitle}</p></div>`; }
+function summaryCards(items){ return `<div class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-${Math.min(items.length,5)}">${items.map(x=>`<div class="metric"><div class="text-xs text-slate-500">${x[0]}</div><div class="mt-1 text-xl font-black ${x[2]||''}">${x[1]}</div></div>`).join('')}</div>`; }
+function simpleTable(headers,rows){ return `<div class="overflow-auto rounded-xl border border-slate-200"><table class="w-full min-w-[850px] text-xs"><thead class="bg-slate-50"><tr>${headers.map(h=>`<th class="p-3 text-left">${h}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr class="border-t border-slate-100">${r.map((c,i)=>`<td class="p-3 ${i>2?'text-right':''}">${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}" class="p-8 text-center text-slate-500">本期間沒有資料</td></tr>`}</tbody></table></div>`; }
+
+function calcPnl(start,end){
+  const rows=allOrders.filter(o=>o.order_status!=='cancelled' && dateInRange(o.revenue_recognition_date||o.departure_time,start,end));
+  const revenue=rows.reduce((s,o)=>s+num(o.sales_ex_tax_twd||salesTwd(o)),0);
+  const costs=rows.reduce((s,o)=>s+num(o.cost_ex_tax_twd||costTwd(o)),0);
+  const refunds=orderEvents.filter(e=>e.action_type==='refund'&&dateInRange(e.action_date,start,end)).reduce((s,e)=>s+num(e.amount)*num(e.fx_rate||1),0);
+  const entries=financeEntries.filter(e=>dateInRange(e.entry_date,start,end));
+  const otherIncome=entries.filter(e=>e.entry_type==='other_income').reduce((s,e)=>s+num(e.amount_ex_tax_twd||e.amount_twd),0);
+  const opExpense=entries.filter(e=>e.entry_type==='operating_expense').reduce((s,e)=>s+num(e.amount_ex_tax_twd||e.amount_twd),0);
+  const otherExpense=entries.filter(e=>e.entry_type==='other_expense'||e.entry_type==='tax_payment').reduce((s,e)=>s+num(e.amount_ex_tax_twd||e.amount_twd),0);
+  return {rows,revenue,costs,refunds,otherIncome,opExpense,otherExpense,profit:revenue-costs-refunds+otherIncome-opExpense-otherExpense};
+}
+
+function render401(start,end){
+  const sales=allOrders.filter(o=>o.invoice_status==='issued'&&dateInRange(o.invoice_date,start,end)&&o.order_status!=='cancelled');
+  const taxable=sales.filter(o=>o.sales_tax_type==='taxable'), zero=sales.filter(o=>o.sales_tax_type==='zero'), exempt=sales.filter(o=>o.sales_tax_type==='exempt'), out=sales.filter(o=>o.sales_tax_type==='out_of_scope');
+  const purchases=allOrders.filter(o=>dateInRange(o.cost_document_date,start,end));
+  const deductible=purchases.filter(o=>o.cost_tax_type==='deductible');
+  const output=taxable.reduce((s,o)=>s+num(o.output_tax_twd),0), input=deductible.reduce((s,o)=>s+num(o.input_tax_twd),0);
+  const unclassified=allOrders.filter(o=>dateInRange(o.invoice_date||o.revenue_recognition_date||o.departure_time,start,end)&&o.sales_tax_type==='unclassified').length;
+  currentReportRows=sales.map(o=>['銷項',o.invoice_date,o.invoice_number,o.order_number,o.customer,o.sales_tax_type,o.sales_ex_tax_twd,o.output_tax_twd]);
+  return reportTitle('401 營業稅試算表','內部核對用途，不是官方申報檔；稅別未分類資料不納入試算。')+
+    summaryCards([['應稅銷售額',money(taxable.reduce((s,o)=>s+num(o.sales_ex_tax_twd),0)),'text-blue-700'],['銷項稅額',money(output),'text-blue-700'],['可扣抵進項稅',money(input),'text-emerald-700'],['估計應納／溢付',money(output-input),output-input>=0?'text-red-700':'text-emerald-700'],['未分類筆數',unclassified,'text-amber-700']])+
+    `<div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><b>檢查提示：</b>零稅率銷售 ${money(zero.reduce((s,o)=>s+num(o.sales_ex_tax_twd),0))}；免稅銷售 ${money(exempt.reduce((s,o)=>s+num(o.sales_ex_tax_twd),0))}；非課稅範圍 ${money(out.reduce((s,o)=>s+num(o.sales_ex_tax_twd),0))}。若有免稅或兼營情形，應由會計人員判斷是否改用403申報。</div>`+
+    simpleTable(['類型','日期','憑證號碼','訂單編號','對象','稅別','未稅金額','稅額'],[
+      ...sales.map(o=>['銷項',esc(o.invoice_date),esc(o.invoice_number||'-'),esc(o.order_number),esc(o.customer),esc(o.sales_tax_type),money(o.sales_ex_tax_twd),money(o.output_tax_twd)]),
+      ...deductible.map(o=>['進項',esc(o.cost_document_date),esc(o.cost_document_number||'-'),esc(o.order_number),esc(o.supplier_name||'-'),esc(o.cost_tax_type),money(o.cost_ex_tax_twd),money(o.input_tax_twd)])
+    ]);
+}
+
+function renderPrepayment(start,end){
+  const rows=allOrders.filter(o=>{const p=num(o.prepayment_twd||(o.receipt_type==='prepayment'?o.received_twd:0));return p>0&&(!end||o.receipt_date<=end)&&(!end||o.departure_time>end)&&o.order_status!=='cancelled';});
+  const total=rows.reduce((s,o)=>s+num(o.prepayment_twd||(o.receipt_type==='prepayment'?o.received_twd:0)),0);
+  currentReportRows=rows.map(o=>[o.order_number,o.customer,o.receipt_date,o.departure_time,o.prepayment_twd,o.receipt_account]);
+  return reportTitle('預收款報表',`截至 ${end||'目前'}，已收款但服務尚未履行的訂單`) + summaryCards([['預收款總額',money(total),'text-amber-700'],['訂單筆數',rows.length,'text-blue-700']]) + simpleTable(['訂單編號','旅客','收款日','出團日','預收款','收款帳戶'],rows.map(o=>[esc(o.order_number),esc(o.customer),esc(o.receipt_date||'-'),esc(o.departure_time||'-'),money(o.prepayment_twd||(o.receipt_type==='prepayment'?o.received_twd:0)),esc(o.receipt_account||'-')]));
+}
+
+function renderPayable(start,end){
+  const rows=allOrders.filter(o=>apTwd(o)>0&&(!end||((o.payable_due_date||o.cost_recognition_date||o.departure_time||'9999-12-31')<=end))&&o.order_status!=='cancelled');
+  currentReportRows=rows.map(o=>[o.order_number,o.supplier_name,o.payable_due_date,costTwd(o),paidTwd(o),apTwd(o)]);
+  return reportTitle('應付帳款報表',`截至 ${end||'目前'} 的未付供應商款項`) + summaryCards([['應付總額',money(rows.reduce((s,o)=>s+apTwd(o),0)),'text-red-700'],['逾期筆數',rows.filter(o=>o.payable_due_date&&o.payable_due_date<today()).length,'text-amber-700']]) + simpleTable(['訂單編號','供應商','應付期限','成本總額','已付','未付餘額'],rows.map(o=>[esc(o.order_number),esc(o.supplier_name||'-'),esc(o.payable_due_date||'-'),money(costTwd(o)),money(paidTwd(o)),`<b class="text-red-700">${money(apTwd(o))}</b>`]));
+}
+
+function renderPnl(start,end){
+  const p=calcPnl(start,end); currentReportRows=p.rows.map(o=>[o.order_number,o.revenue_recognition_date||o.departure_time,o.customer,o.sales_ex_tax_twd||salesTwd(o),o.cost_ex_tax_twd||costTwd(o)]);
+  return reportTitle('損益表',`${start||'起始'} ～ ${end||'目前'}，採服務／收入認列日`) + summaryCards([['營業收入',money(p.revenue),'text-blue-700'],['直接成本',money(p.costs),'text-red-700'],['營業費用',money(p.opExpense),'text-red-700'],['退款與其他費用',money(p.refunds+p.otherExpense),'text-amber-700'],['本期損益',money(p.profit),p.profit>=0?'text-emerald-700':'text-red-700']]) + simpleTable(['項目','金額'],[['營業收入',money(p.revenue)],['減：直接成本',money(p.costs)],['減：退款',money(p.refunds)],['加：其他收入',money(p.otherIncome)],['減：營業費用',money(p.opExpense)],['減：其他費用',money(p.otherExpense)],['本期淨利（損）',`<b>${money(p.profit)}</b>`]]);
+}
+
+function cumulativeManual(end,type){return financeEntries.filter(e=>(!end||e.entry_date<=end)&&e.entry_type===type).reduce((s,e)=>s+num(e.amount_twd),0);}
+function renderBalance(_start,end){
+  const openingCash=cumulativeManual(end,'opening_cash')+cumulativeManual(end,'opening_bank');
+  const receipts=allOrders.filter(o=>!end||o.receipt_date<=end).reduce((s,o)=>s+receivedTwd(o),0);
+  const supplierPaid=allOrders.filter(o=>!end||o.payable_paid_date<=end).reduce((s,o)=>s+paidTwd(o),0);
+  const refunds=orderEvents.filter(e=>e.action_type==='refund'&&(!end||e.action_date<=end)).reduce((s,e)=>s+num(e.amount)*num(e.fx_rate||1),0);
+  const manualCash=financeEntries.filter(e=>(!end||e.entry_date<=end)&&!['opening_cash','opening_bank'].includes(e.entry_type)).reduce((s,e)=>s+(e.direction==='inflow'?num(e.amount_twd):e.direction==='outflow'?-num(e.amount_twd):0),0);
+  const cash=openingCash+receipts-supplierPaid-refunds+manualCash;
+  const ar=allOrders.filter(o=>o.order_status!=='cancelled'&&(!end||(o.order_date||o.departure_time)<=end)).reduce((s,o)=>s+arTwd(o),0);
+  const supplierPre=allOrders.filter(o=>!end||(o.payable_paid_date||o.order_date)<=end).reduce((s,o)=>s+num(o.supplier_prepayment_twd),0);
+  const otherAssets=cumulativeManual(end,'opening_other_asset')+cumulativeManual(end,'asset_purchase')-cumulativeManual(end,'asset_sale');
+  const ap=allOrders.filter(o=>o.order_status!=='cancelled'&&(!end||(o.order_date||o.departure_time)<=end)).reduce((s,o)=>s+apTwd(o),0);
+  const advances=allOrders.filter(o=>{const p=num(o.prepayment_twd||(o.receipt_type==='prepayment'?o.received_twd:0));return p>0&&(!end||o.receipt_date<=end)&&(!end||o.departure_time>end)&&o.order_status!=='cancelled';}).reduce((s,o)=>s+num(o.prepayment_twd||(o.receipt_type==='prepayment'?o.received_twd:0)),0);
+  const loans=cumulativeManual(end,'opening_liability')+cumulativeManual(end,'loan_in')-cumulativeManual(end,'loan_repayment');
+  const openingEquity=cumulativeManual(end,'opening_equity');
+  const capital=cumulativeManual(end,'capital_in')-cumulativeManual(end,'owner_draw');
+  const retained=calcPnl('',end).profit;
+  const assets=cash+ar+supplierPre+otherAssets, liabilities=ap+advances+loans, equity=openingEquity+capital+retained, diff=assets-liabilities-equity;
+  currentReportRows=[['資產','現金及銀行',cash],['資產','應收帳款',ar],['資產','供應商預付款',supplierPre],['資產','其他資產',otherAssets],['負債','應付帳款',ap],['負債','客戶預收款',advances],['負債','借款',loans],['權益','期初及投入資本',openingEquity+capital],['權益','累積損益',retained],['核對','未平衡差額',diff]];
+  return reportTitle('資產負債表（管理用）',`截至 ${end||'目前'}；未輸入期初餘額或非訂單交易時，可能產生未平衡差額。`) + summaryCards([['資產總額',money(assets),'text-blue-700'],['負債總額',money(liabilities),'text-red-700'],['權益總額',money(equity),'text-emerald-700'],['未平衡差額',money(diff),Math.abs(diff)<1?'text-emerald-700':'text-amber-700']]) + `<div class="grid gap-4 md:grid-cols-2">${simpleTable(['資產項目','金額'],[['現金及銀行',money(cash)],['應收帳款',money(ar)],['供應商預付款',money(supplierPre)],['其他資產／固定資產',money(otherAssets)],['資產總額',`<b>${money(assets)}</b>`]])}${simpleTable(['負債及權益項目','金額'],[['應付帳款',money(ap)],['客戶預收款',money(advances)],['借款',money(loans)],['期初及投入資本',money(openingEquity+capital)],['累積損益',money(retained)],['負債及權益總額',`<b>${money(liabilities+equity)}</b>`]])}</div>`;
+}
+
+function renderCashflow(start,end){
+  const customer=allOrders.filter(o=>dateInRange(o.receipt_date,start,end)).reduce((s,o)=>s+receivedTwd(o),0);
+  const supplier=allOrders.filter(o=>dateInRange(o.payable_paid_date,start,end)).reduce((s,o)=>s+paidTwd(o),0);
+  const refunds=orderEvents.filter(e=>e.action_type==='refund'&&dateInRange(e.action_date,start,end)).reduce((s,e)=>s+num(e.amount)*num(e.fx_rate||1),0);
+  const entries=financeEntries.filter(e=>dateInRange(e.entry_date,start,end));
+  const section=(sec)=>entries.filter(e=>e.cash_flow_section===sec).reduce((s,e)=>s+(e.direction==='inflow'?num(e.amount_twd):e.direction==='outflow'?-num(e.amount_twd):0),0);
+  const operating=customer-supplier-refunds+section('operating'), investing=section('investing'), financing=section('financing'), net=operating+investing+financing;
+  currentReportRows=[['營業活動','客戶收款',customer],['營業活動','供應商付款',-supplier],['營業活動','退款',-refunds],['營業活動','其他營業現金流',section('operating')],['投資活動','淨現金流',investing],['籌資活動','淨現金流',financing],['合計','淨現金增減',net]];
+  return reportTitle('現金流量表（直接法）',`${start||'起始'} ～ ${end||'目前'}，以實際收付款日計算`) + summaryCards([['營業活動',money(operating),operating>=0?'text-emerald-700':'text-red-700'],['投資活動',money(investing),investing>=0?'text-emerald-700':'text-red-700'],['籌資活動',money(financing),financing>=0?'text-emerald-700':'text-red-700'],['現金淨增減',money(net),net>=0?'text-blue-700':'text-red-700']]) + simpleTable(['現金流量項目','流入／（流出）'],[['客戶收款',money(customer)],['供應商付款',money(-supplier)],['退款',money(-refunds)],['其他營業活動',money(section('operating'))],['營業活動淨額',`<b>${money(operating)}</b>`],['投資活動淨額',money(investing)],['籌資活動淨額',money(financing)],['本期現金淨增減',`<b>${money(net)}</b>`]]);
+}
+
+function renderReport(){ if(!$('reportOutput'))return; const {start,end}=reportRange(); let html=''; if(activeReport==='401')html=render401(start,end); if(activeReport==='prepayment')html=renderPrepayment(start,end); if(activeReport==='payable')html=renderPayable(start,end); if(activeReport==='pnl')html=renderPnl(start,end); if(activeReport==='balance')html=renderBalance(start,end); if(activeReport==='cashflow')html=renderCashflow(start,end); $('reportOutput').innerHTML=html; }
+$('reportStartDate').addEventListener('change',renderReport); $('reportEndDate').addEventListener('change',renderReport);
+
+$('exportReportBtn').addEventListener('click',()=>{
+  const rows=currentReportRows||[]; if(!rows.length)return alert('目前沒有可匯出的資料。');
+  const csv=rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\r\n'); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${activeReport}_${$('reportStartDate').value}_${$('reportEndDate').value}.csv`;a.click();URL.revokeObjectURL(a.href);
+});
+
+const financeTypes={
+  opening_cash:['期初現金','noncash','none'], opening_bank:['期初銀行存款','noncash','none'], opening_other_asset:['期初其他資產','noncash','none'], opening_liability:['期初負債／借款','noncash','none'], opening_equity:['期初權益','noncash','none'], capital_in:['股東／業主投入','inflow','financing'], owner_draw:['業主提領','outflow','financing'], loan_in:['借款收入','inflow','financing'], loan_repayment:['償還借款','outflow','financing'], asset_purchase:['購置固定資產','outflow','investing'], asset_sale:['出售固定資產','inflow','investing'], operating_expense:['營業費用','outflow','operating'], other_income:['其他收入','inflow','operating'], other_expense:['其他費用','outflow','operating'], tax_payment:['稅款支付','outflow','operating']
+};
+$('financeType').innerHTML=Object.entries(financeTypes).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
+function updateFinanceMapping(){const v=financeTypes[$('financeType').value];$('financeMapping').textContent=`現金方向：${v[1]}；現金流分類：${v[2]}`;}
+$('financeType').addEventListener('change',updateFinanceMapping); updateFinanceMapping(); $('financeDate').value=today();
+$('financeForm').addEventListener('submit',async e=>{
+  e.preventDefault(); const type=$('financeType').value, map=financeTypes[type]; const body={entry_date:$('financeDate').value,entry_type:type,amount_twd:num($('financeAmount').value),direction:map[1],cash_flow_section:map[2],account_name:$('financeAccount').value.trim(),counterparty:$('financeCounterparty').value.trim(),document_number:$('financeDocument').value.trim(),note:$('financeNote').value.trim(),created_by:currentUser.id,updated_by:currentUser.id};
+  try{await api('/rest/v1/finance_entries',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});$('financeForm').reset();$('financeDate').value=today();updateFinanceMapping();await loadAll();}catch(e){alert(`儲存失敗：${e.message}`);}
+});
+function renderFinanceList(){ $('financeListBody').innerHTML=financeEntries.map(e=>`<tr class="border-t border-slate-100"><td class="p-3">${esc(e.entry_date)}</td><td class="p-3 font-bold">${esc(financeTypes[e.entry_type]?.[0]||e.entry_type)}</td><td class="p-3">${esc(e.account_name||'-')}<div class="text-[11px] text-slate-500">${esc(e.counterparty||'')}</div></td><td class="p-3 text-right font-bold ${e.direction==='inflow'?'text-emerald-700':e.direction==='outflow'?'text-red-700':''}">${money(e.amount_twd)}</td><td class="p-3">${esc(e.cash_flow_section)}／${esc(e.direction)}</td><td class="p-3">${esc(e.note||'')}</td><td class="p-3 text-right"><button data-fin-del="${e.id}" class="finDelete rounded bg-red-50 px-2 py-1 font-bold text-red-700">刪除</button></td></tr>`).join(''); document.querySelectorAll('.finDelete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('刪除這筆其他帳務？'))return;try{await api(`/rest/v1/finance_entries?id=eq.${b.dataset.finDel}`,{method:'DELETE'});await loadAll();}catch(e){alert(e.message);}})); }
+
+const monthStart=new Date(); monthStart.setDate(1); $('reportStartDate').value=monthStart.toISOString().slice(0,10); $('reportEndDate').value=today();
+resetOrder(); renderReport();
 </script>
 </body>
 </html>
