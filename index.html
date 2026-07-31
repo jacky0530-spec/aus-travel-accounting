@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.5</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.6</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -28,6 +28,15 @@
       #reportOutput { box-shadow:none !important; border:none !important; }
     }
   </style>
+
+<style>
+  @media (min-width: 1280px) and (max-width: 1500px) {
+    #tab-orders > div { grid-template-columns: 470px minmax(0,1fr) !important; }
+  }
+  @media (max-width: 1279px) {
+    #rightPanel-orders table { min-width: 900px; }
+  }
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 p-4" id="loginScreen">
@@ -52,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.5</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.6</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2-multi｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -65,7 +74,7 @@
 </header>
 <main class="mx-auto max-w-[1800px] p-3 md:p-4">
 <section class="tabPanel" id="tab-orders">
-<div class="grid gap-4 xl:grid-cols-[620px_minmax(0,1fr)]">
+<div class="grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]">
 <aside class="no-print xl:sticky xl:top-[78px] xl:max-h-[calc(100vh-92px)] xl:overflow-y-auto thin-scroll">
 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
 <div class="border-b border-slate-200 p-4">
@@ -201,8 +210,8 @@
 </div>
 <div class="grid grid-cols-2 gap-2 p-4 md:grid-cols-5"><div class="metric"><div class="text-xs text-slate-500">訂單數</div><div class="text-xl font-black" id="metricCount">0</div></div><div class="metric"><div class="text-xs text-slate-500">銷售 AUD</div><div class="text-xl font-black text-blue-700" id="metricSalesAud">A$0.00</div></div><div class="metric"><div class="text-xs text-slate-500">已收 AUD</div><div class="text-xl font-black text-emerald-700" id="metricReceived">A$0.00</div></div><div class="metric"><div class="text-xs text-slate-500">應收 AUD</div><div class="text-xl font-black text-amber-700" id="metricAr">A$0.00</div></div><div class="metric"><div class="text-xs text-slate-500">未付出車成本 AUD</div><div class="text-xl font-black text-red-700" id="metricAp">A$0.00</div></div></div>
 <div class="max-h-[calc(100vh-330px)] min-h-[400px] overflow-auto thin-scroll border-t border-slate-200">
-<table class="w-full min-w-[1250px] text-left text-xs">
-<thead class="table-head text-slate-600"><tr><th class="p-3">訂單／外部單號</th><th class="p-3">旅客／聯絡</th><th class="p-3">行程明細</th><th class="p-3 text-right">銷售 AUD</th><th class="p-3 text-right">已收／應收 AUD</th><th class="p-3">出車安排</th><th class="p-3">狀態</th><th class="p-3 text-right">操作</th></tr></thead>
+<table class="w-full min-w-[980px] table-fixed text-left text-[11px]">
+<thead class="table-head text-slate-600"><tr><th class="w-[13%] p-2">訂單／外部單號</th><th class="w-[14%] p-2">旅客／聯絡</th><th class="w-[22%] p-2">行程明細</th><th class="w-[8%] p-2 text-right">銷售 AUD</th><th class="w-[10%] p-2 text-right">已收／應收</th><th class="w-[13%] p-2">出車安排</th><th class="w-[9%] p-2">狀態</th><th class="w-[11%] p-2 text-right">操作</th></tr></thead>
 <tbody id="orderListBody"></tbody>
 </table>
 <div class="hidden p-10 text-center text-sm text-slate-500" id="orderEmpty">沒有符合條件的訂單</div>
@@ -633,7 +642,7 @@ function renderManagedUsers(){
   $('usersListBody').innerHTML=managedUsers.map(u=>`<tr class="border-t border-slate-100">
     <td class="p-3 font-bold">${esc(u.email||'')}</td>
     <td class="p-3"><select class="userRoleSelect field py-1" data-id="${u.id}" ${u.id===currentUser?.id?'disabled':''}>${Object.entries(roleLabels).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></td>
-    <td class="p-3"><span class="rounded-full px-2 py-1 font-bold ${u.is_active?'bg-emerald-50 text-emerald-700':'bg-red-50 text-red-700'}">${u.is_active?'啟用':'停用'}</span></td>
+    <td class="p-2"><span class="rounded-full px-2 py-1 font-bold ${u.is_active?'bg-emerald-50 text-emerald-700':'bg-red-50 text-red-700'}">${u.is_active?'啟用':'停用'}</span></td>
     <td class="p-3">${esc((u.created_at||'').slice(0,10))}</td>
     <td class="p-3 text-right"><button class="toggleUserBtn rounded-lg px-3 py-1.5 font-bold ${u.is_active?'bg-red-50 text-red-700':'bg-emerald-50 text-emerald-700'}" data-id="${u.id}" data-active="${u.is_active}" ${u.id===currentUser?.id?'disabled title="不可停用自己"':''}>${u.is_active?'停用':'啟用'}</button></td>
   </tr>`).join('');
@@ -738,21 +747,21 @@ function renderOrderList(){
   $('orderListBody').innerHTML=rows.map(o=>{
     const cancelled=o.order_status==='cancelled';
     const items=orderItemsFor(o.id);
-    const itemHtml=items.map(i=>`<div class="mb-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5"><b>${esc(i.service_date)} ${esc((i.service_time||'').slice(0,5))}</b> <span class="text-blue-700">${esc(i.category||'未分類')}</span><div class="max-w-[350px] truncate text-[11px] text-slate-600">${esc(i.trip_detail||i.ticket_info||'-')}／${moneyAud(i.amount_aud)}</div></div>`).join('');
+    const itemHtml=items.map(i=>`<div class="mb-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5"><b>${esc(i.service_date)} ${esc((i.service_time||'').slice(0,5))}</b> <span class="text-blue-700">${esc(i.category||'未分類')}</span><div class="truncate text-[10px] text-slate-600">${esc(i.trip_detail||i.ticket_info||'-')}／${moneyAud(i.amount_aud)}</div></div>`).join('');
     const dispatchRows=dispatchesForOrder(o.id);
     const dispatchHtml=dispatchRows.length?dispatchRows.map(d=>`<div class="mb-1 rounded bg-violet-50 px-2 py-1"><b>${esc(d.dispatch_number)}</b>｜${esc(driverName(d.driver_id)||'-')}<div class="text-[11px]">${esc(d.dispatch_date)}／${moneyAud(d.total_cost_aud)}</div></div>`).join(''):'<span class="text-slate-400">尚未安排</span>';
     const canReceive=!cancelled&&arAud(o)>.009;
     const canClose=!cancelled&&o.case_status!=='closed';
     const quickStatusHtml=cancelled?'':`<div class="mt-2 flex flex-wrap gap-1">${canReceive?`<button data-receive="${esc(o.id)}" class="receiveBtn rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700">收款</button>`:`<span class="rounded bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">已收清</span>`}${canClose?`<button data-close="${esc(o.id)}" class="closeBtn rounded bg-slate-700 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-800">結案</button>`:''}</div>`;
     return `<tr class="border-b border-slate-100 align-top hover:bg-slate-50 ${cancelled?'opacity-60':''}">
-      <td class="p-3"><b class="text-blue-700">${esc(o.order_number)}</b><div class="text-[11px] text-slate-500">${esc(o.external_order_number||'-')} ${o.agent_name?`／${esc(o.agent_name)}`:''}</div></td>
-      <td class="p-3"><b>${esc(o.customer)}</b><div class="text-[11px] text-slate-500">${esc(o.contact_phone||'-')}／${esc(o.contact_email||'-')}</div></td>
-      <td class="p-3">${itemHtml||'<span class="text-slate-400">無明細</span>'}</td>
-      <td class="p-3 text-right"><b>${moneyAud(o.amount)}</b></td>
-      <td class="p-3 text-right"><b class="text-emerald-700">${moneyAud(receivedAud(o))}</b><div class="text-[11px] ${arAud(o)>0?'text-amber-700':'text-slate-400'}">應收 ${moneyAud(arAud(o))}</div></td>
-      <td class="p-3">${dispatchHtml}</td>
+      <td class="p-2 break-words"><b class="text-blue-700">${esc(o.order_number)}</b><div class="text-[11px] text-slate-500">${esc(o.external_order_number||'-')} ${o.agent_name?`／${esc(o.agent_name)}`:''}</div></td>
+      <td class="p-2 break-words"><b>${esc(o.customer)}</b><div class="text-[11px] text-slate-500">${esc(o.contact_phone||'-')}／${esc(o.contact_email||'-')}</div></td>
+      <td class="p-2">${itemHtml||'<span class="text-slate-400">無明細</span>'}</td>
+      <td class="p-2 text-right"><b>${moneyAud(o.amount)}</b></td>
+      <td class="p-2 text-right"><b class="text-emerald-700">${moneyAud(receivedAud(o))}</b><div class="text-[11px] ${arAud(o)>0?'text-amber-700':'text-slate-400'}">應收 ${moneyAud(arAud(o))}</div></td>
+      <td class="p-2">${dispatchHtml}</td>
       <td class="p-3"><span class="rounded-full px-2 py-1 text-[11px] font-bold ${cancelled?'bg-red-100 text-red-700':o.case_status==='closed'?'bg-slate-200 text-slate-700':'bg-emerald-100 text-emerald-700'}">${cancelled?'已取消':o.case_status==='closed'?'已結案':'進行中'}</span>${quickStatusHtml}</td>
-      <td class="p-3 text-right whitespace-nowrap"><button data-edit="${esc(o.id)}" class="editBtn rounded bg-blue-50 px-2 py-1 font-bold text-blue-700">編輯</button> <button data-refund="${esc(o.id)}" class="refundBtn rounded bg-amber-50 px-2 py-1 font-bold text-amber-700">退款</button> <button data-cancel="${esc(o.id)}" class="cancelBtn rounded bg-red-50 px-2 py-1 font-bold text-red-700">取消</button> <button data-delete="${esc(o.id)}" class="deleteBtn rounded bg-slate-100 px-2 py-1 font-bold">刪除</button></td>
+      <td class="p-2"><div class="grid grid-cols-2 gap-1"><button data-edit="${esc(o.id)}" class="editBtn rounded bg-blue-50 px-1.5 py-1 font-bold text-blue-700">編輯</button><button data-refund="${esc(o.id)}" class="refundBtn rounded bg-amber-50 px-1.5 py-1 font-bold text-amber-700">退款</button><button data-cancel="${esc(o.id)}" class="cancelBtn rounded bg-red-50 px-1.5 py-1 font-bold text-red-700">取消</button><button data-delete="${esc(o.id)}" class="deleteBtn rounded bg-slate-100 px-1.5 py-1 font-bold">刪除</button></div></td>
     </tr>`;
   }).join('');
   document.querySelectorAll('.editBtn').forEach(b=>b.addEventListener('click',()=>editOrder(b.dataset.edit)));
