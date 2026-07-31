@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.9</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.9</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.0</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2-multi｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -880,20 +880,47 @@ function recalcReceiptAuto(r,force=false){
 }
 function collectReceipts(){return receipts.filter(r=>num(r.amount_foreign)>0||num(r.discount_foreign)>0||num(r.amount_aud)>0||num(r.discount_aud)>0).map(r=>{normalizeReceiptAmounts(r);recalcReceiptAuto(r);return {...r,fx_to_aud:Math.max(.0001,num(r.fx_to_aud)||1),expected_amount_foreign:num(r.expected_amount_foreign),discount_foreign:num(r.discount_foreign),amount_foreign:num(r.amount_foreign),amount_aud:round2(num(r.amount_aud)),discount_aud:round2(num(r.discount_aud))};});}
 $('addReceiptBtn').addEventListener('click',()=>{receipts.push(newReceipt());renderReceiptRows();calculateFinancials();});
+function syncReceiptRowDom(i,sourceEl=null){
+  const r=receipts[i];if(!r)return;
+  const setField=(field,value)=>{
+    const el=$('receiptRows').querySelector(`[data-ri="${i}"][data-rfield="${field}"]`);
+    if(el&&el!==sourceEl)el.value=value;
+  };
+  setField('expected_amount_foreign',r.expected_amount_foreign||'');
+  setField('discount_foreign',r.discount_foreign||'');
+  setField('amount_foreign',r.amount_foreign||'');
+  setField('fx_to_aud',r.fx_to_aud||1);
+  setField('amount_aud',num(r.amount_aud).toFixed(2));
+  setField('discount_aud',num(r.discount_aud).toFixed(2));
+  const autoAud=$('receiptRows').querySelector(`[data-receipt-auto-aud="${i}"]`);
+  const autoDiscount=$('receiptRows').querySelector(`[data-receipt-auto-discount-aud="${i}"]`);
+  if(autoAud)autoAud.value=num(r.calculated_amount_aud).toFixed(2);
+  if(autoDiscount)autoDiscount.value=num(r.calculated_discount_aud).toFixed(2);
+}
 $('receiptRows').addEventListener('input',e=>{
-  const el=e.target;if(!el.classList.contains('receiptInput'))return;const i=num(el.dataset.ri),field=el.dataset.rfield;if(!receipts[i])return;
+  const el=e.target;if(!el.classList.contains('receiptInput'))return;
+  const i=num(el.dataset.ri),field=el.dataset.rfield;if(!receipts[i])return;
   receipts[i][field]=['expected_amount_foreign','discount_foreign','amount_foreign','fx_to_aud','amount_aud','discount_aud'].includes(field)?num(el.value):el.value;
   if(field==='amount_aud')receipts[i].amount_aud_manual=true;
   if(field==='discount_aud')receipts[i].discount_aud_manual=true;
-  if(field==='currency'){receipts[i].fx_to_aud=el.value==='AUD'?1:el.value==='TWD'?(num($('fxRate').value)||23):4.75;recalcReceiptAuto(receipts[i]);renderReceiptRows();}
-  else if(['expected_amount_foreign','discount_foreign','amount_foreign'].includes(field)){normalizeReceiptAmounts(receipts[i],field);recalcReceiptAuto(receipts[i]);renderReceiptRows();}
-  else if(field==='fx_to_aud'){recalcReceiptAuto(receipts[i]);renderReceiptRows();}
+  if(field==='currency'){
+    receipts[i].fx_to_aud=el.value==='AUD'?1:el.value==='TWD'?(num($('fxRate').value)||23):4.75;
+    recalcReceiptAuto(receipts[i]);
+    syncReceiptRowDom(i,el);
+  } else if(['expected_amount_foreign','discount_foreign','amount_foreign'].includes(field)){
+    normalizeReceiptAmounts(receipts[i],field);
+    recalcReceiptAuto(receipts[i]);
+    syncReceiptRowDom(i,el);
+  } else if(field==='fx_to_aud'){
+    recalcReceiptAuto(receipts[i]);
+    syncReceiptRowDom(i,el);
+  }
   calculateFinancials();
 });
 $('receiptRows').addEventListener('click',e=>{
   const remove=e.target.closest('[data-remove-receipt]');if(remove){receipts.splice(num(remove.dataset.removeReceipt),1);if(!receipts.length)receipts=[newReceipt()];renderReceiptRows();calculateFinancials();return;}
-  const a=e.target.closest('[data-reset-receipt-aud]');if(a){const i=num(a.dataset.resetReceiptAud);receipts[i].amount_aud_manual=false;recalcReceiptAuto(receipts[i],false);renderReceiptRows();calculateFinancials();return;}
-  const d=e.target.closest('[data-reset-receipt-discount-aud]');if(d){const i=num(d.dataset.resetReceiptDiscountAud);receipts[i].discount_aud_manual=false;recalcReceiptAuto(receipts[i],false);renderReceiptRows();calculateFinancials();}
+  const a=e.target.closest('[data-reset-receipt-aud]');if(a){const i=num(a.dataset.resetReceiptAud);receipts[i].amount_aud_manual=false;recalcReceiptAuto(receipts[i],false);syncReceiptRowDom(i);calculateFinancials();return;}
+  const d=e.target.closest('[data-reset-receipt-discount-aud]');if(d){const i=num(d.dataset.resetReceiptDiscountAud);receipts[i].discount_aud_manual=false;recalcReceiptAuto(receipts[i],false);syncReceiptRowDom(i);calculateFinancials();}
 });
 function calculateFinancials(){
   const grossAud=round2(orderItems.reduce((s,i)=>s+num(i.amount_aud),0));
