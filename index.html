@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.7</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.9</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.7</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.9</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2-multi｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -130,7 +130,9 @@
 <div><label class="field-label">會計匯率（TWD／AUD）</label><input class="field" id="fxRate" step="0.0001" type="number" value="23"/></div>
 <div><label class="field-label">行程原價合計 AUD</label><input class="field readonly" id="grossOrderAmount" readonly="" step="0.01" type="number"/></div>
 <div><label class="field-label">訂單折扣 AUD</label><input class="field" id="discountAud" min="0" step="0.01" type="number" value="0"/></div>
-<div><label class="field-label">折扣後訂單總額 AUD</label><input class="field readonly" id="amount" readonly="" step="0.01" type="number"/></div>
+<div><label class="field-label">系統折扣後總額 AUD</label><input class="field readonly" id="systemNetAmount" readonly="" step="0.01" type="number"/></div>
+<div><label class="field-label">會計應收總額 AUD（可修正）</label><div class="flex gap-2"><input class="field" id="amount" min="0" step="0.01" type="number"/><button class="shrink-0 rounded-lg bg-slate-100 px-2 text-[11px] font-bold text-slate-600" id="resetAccountingAmountBtn" type="button">套用系統值</button></div><p class="mt-1 text-[10px] text-slate-500">應收、結清與會計報表以此金額為準；系統原價與折扣仍保留。</p></div>
+<div><label class="field-label">會計調整差額 AUD</label><input class="field readonly" id="accountingAdjustmentAud" readonly="" step="0.01" type="number"/></div>
 <div><label class="field-label">換算銷售總額 TWD</label><input class="field readonly" id="salesTotalTwd" readonly="" step="0.01" type="number"/></div>
 <div><label class="field-label">401稅別</label><select class="field" id="salesTaxType"><option value="unclassified">未分類</option><option value="taxable">應稅5%</option><option value="zero">零稅率</option><option value="exempt">免稅</option><option value="out_of_scope">非營業稅範圍</option></select></div>
 <div><label class="field-label">金額含稅</label><select class="field" id="taxInclusive"><option value="true">含稅</option><option value="false">未稅</option></select></div>
@@ -149,9 +151,9 @@
 <div class="mt-3 space-y-3">
 <div class="flex items-center justify-between"><div class="text-xs text-slate-500">每筆收款分別輸入日期、幣別、原幣金額與匯率。</div><button class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white" id="addReceiptBtn" type="button">＋新增收款</button></div>
 <div class="space-y-3" id="receiptRows"></div>
-<div class="grid grid-cols-3 gap-2 text-center text-xs">
+<div class="grid grid-cols-2 gap-2 text-center text-xs md:grid-cols-4">
 <div class="rounded-lg bg-emerald-50 p-3"><span class="block text-slate-500">累計已收AUD</span><b id="receiptTotalAud">A$0.00</b></div>
-<div class="rounded-lg bg-amber-50 p-3"><span class="block text-slate-500">其中預收AUD</span><b id="receiptPrepaymentAud">A$0.00</b></div>
+<div class="rounded-lg bg-rose-50 p-3"><span class="block text-slate-500">收款優惠AUD</span><b id="receiptDiscountAud">A$0.00</b></div><div class="rounded-lg bg-amber-50 p-3"><span class="block text-slate-500">其中預收AUD</span><b id="receiptPrepaymentAud">A$0.00</b></div>
 <div class="rounded-lg bg-red-50 p-3"><span class="block text-slate-500">應收餘額AUD</span><b id="receivablePreview">A$0.00</b></div>
 </div>
 <div><label class="field-label">應收期限</label><input class="field" id="receivableDueDate" type="date"/></div>
@@ -396,6 +398,7 @@ let currentReportRows = [];
 let authSequence = 0;
 let sessionTimer = null;
 let sessionWork = Promise.resolve();
+let accountingAmountManual = false;
 
 const $ = id => document.getElementById(id);
 const num = v => Number(v || 0);
@@ -701,10 +704,12 @@ function orderRefundAud(o, end='9999-12-31') {
 }
 function receiptsForOrder(orderId){return orderReceipts.filter(r=>r.order_id===orderId);}
 function receivedAud(o){const rows=receiptsForOrder(o.id);return rows.length?round2(rows.reduce((s,r)=>s+num(r.amount_aud),0)):num(o.received_aud||o.received_amount||(o.payment_status==='paid'?o.amount:0));}
+function receiptDiscountAud(o){const rows=receiptsForOrder(o.id);return rows.length?round2(rows.reduce((s,r)=>s+num(r.discount_aud),0)):num(o.receipt_discount_aud);}
 function firstServiceDate(orderId){return orderItemsFor(orderId).map(i=>i.service_date).filter(Boolean).sort()[0]||'';}
 function receiptPrepaymentAud(o,end='9999-12-31'){const first=firstServiceDate(o.id);return receiptsForOrder(o.id).filter(r=>(!end||r.receipt_date<=end)&&first&&r.receipt_date<first).reduce((s,r)=>s+num(r.amount_aud),0);}
 function receiptCurrencySummary(orderId){const groups={};receiptsForOrder(orderId).forEach(r=>groups[r.currency]=(groups[r.currency]||0)+num(r.amount_foreign));return Object.entries(groups).map(([c,v])=>`${c} ${round2(v).toLocaleString()}`).join('＋');}
-function arAud(o){ return Math.max(0,num(o.amount)-receivedAud(o)-orderRefundAud(o)); }
+function accountingOrderAmount(o){return num(o.accounting_amount_aud||o.amount);}
+function arAud(o){ return Math.max(0,accountingOrderAmount(o)-receivedAud(o)-receiptDiscountAud(o)-orderRefundAud(o)); }
 function financeAud(e){ const direct=num(e.amount_aud); return direct || round2(num(e.amount_twd)/Math.max(.0001,num(e.fx_twd_per_aud)||23)); }
 function dispatchesForOrder(orderId){
   const itemIds=new Set(orderItemsFor(orderId).map(i=>i.id));
@@ -760,7 +765,7 @@ function renderOrderList(){
       <td class="p-2 break-words"><b>${esc(o.customer)}</b><div class="text-[11px] text-slate-500">${esc(o.contact_phone||'-')}／${esc(o.contact_email||'-')}</div></td>
       <td class="p-2">${itemHtml||'<span class="text-slate-400">無明細</span>'}</td>
       <td class="p-2 text-right"><b>${moneyAud(o.amount)}</b></td>
-      <td class="p-2 text-right"><b class="text-emerald-700">${moneyAud(receivedAud(o))}</b><div class="text-[11px] ${arAud(o)>0?'text-amber-700':'text-slate-400'}">應收 ${moneyAud(arAud(o))}</div></td>
+      <td class="p-2 text-right"><b class="text-emerald-700">${moneyAud(receivedAud(o))}</b>${receiptDiscountAud(o)>0?`<div class="text-[11px] text-rose-700">收款優惠 ${moneyAud(receiptDiscountAud(o))}</div>`:''}<div class="text-[11px] ${arAud(o)>0?'text-amber-700':'text-slate-400'}">應收 ${moneyAud(arAud(o))}</div></td>
       <td class="p-2">${dispatchHtml}</td>
       <td class="p-3"><span class="rounded-full px-2 py-1 text-[11px] font-bold ${cancelled?'bg-red-100 text-red-700':o.case_status==='closed'?'bg-slate-200 text-slate-700':'bg-emerald-100 text-emerald-700'}">${cancelled?'已取消':o.case_status==='closed'?'已結案':'進行中'}</span>${quickStatusHtml}</td>
       <td class="p-2"><div class="grid grid-cols-2 gap-1"><button data-edit="${esc(o.id)}" class="editBtn rounded bg-blue-50 px-1.5 py-1 font-bold text-blue-700">編輯</button><button data-refund="${esc(o.id)}" class="refundBtn rounded bg-amber-50 px-1.5 py-1 font-bold text-amber-700">退款</button><button data-cancel="${esc(o.id)}" class="cancelBtn rounded bg-red-50 px-1.5 py-1 font-bold text-red-700">取消</button><button data-delete="${esc(o.id)}" class="deleteBtn rounded bg-slate-100 px-1.5 py-1 font-bold">刪除</button></div></td>
@@ -820,30 +825,87 @@ $('pax').addEventListener('input',()=>{orderItems.forEach(i=>{if(!i.pax||i.pax==
 
 function resetOrder(){
   $('orderForm').reset(); receipts=[newReceipt()]; $('editingId').value=''; $('orderNumber').value='儲存時自動產生'; $('formHeading').textContent='新增訂單'; $('orderStatusDisplay').value='有效';
-  $('orderDate').value=today(); $('pax').value=1; $('currency').value='AUD'; $('fxRate').value=23; $('discountAud').value=0; $('taxInclusive').value='true'; $('salesTaxType').value='unclassified'; $('receiptType').value='unpaid'; $('paymentCurrency').value='AUD'; $('paymentFxToAud').value=1; $('costTaxType').value='unclassified'; $('caseStatus').value='open'; $('rawOrderText').value=''; $('parseMessage').classList.add('hidden'); $('revenueRecognitionDate').value=today(); $('receivableDueDate').value=today(); $('payableDueDate').value=today(); renderReceiptRows();
+  $('orderDate').value=today(); $('pax').value=1; $('currency').value='AUD'; $('fxRate').value=23; $('discountAud').value=0; accountingAmountManual=false; $('taxInclusive').value='true'; $('salesTaxType').value='unclassified'; $('receiptType').value='unpaid'; $('paymentCurrency').value='AUD'; $('paymentFxToAud').value=1; $('costTaxType').value='unclassified'; $('caseStatus').value='open'; $('rawOrderText').value=''; $('parseMessage').classList.add('hidden'); $('revenueRecognitionDate').value=today(); $('receivableDueDate').value=today(); $('payableDueDate').value=today(); renderReceiptRows();
   orderItems=[newOrderItem({service_date:today()})]; renderOrderItems(); calculateFinancials();
 }
 $('resetOrderBtn').addEventListener('click',resetOrder);
 
-function newReceipt(v={}){const currency=v.currency||'AUD';const rate=num(v.fx_to_aud)||(currency==='AUD'?1:currency==='TWD'?(num($('fxRate')?.value)||23):4.75);return {id:v.id||'',receipt_date:v.receipt_date||today(),currency,fx_to_aud:rate,amount_foreign:num(v.amount_foreign)||0,amount_aud:num(v.amount_aud)||0,payment_method:v.payment_method||'',receipt_account:v.receipt_account||'',note:v.note||''};}
+function newReceipt(v={}){
+  const currency=v.currency||'AUD';
+  const rate=num(v.fx_to_aud)||(currency==='AUD'?1:currency==='TWD'?(num($('fxRate')?.value)||23):4.75);
+  const actual=num(v.amount_foreign)||0, discount=num(v.discount_foreign)||0, expected=num(v.expected_amount_foreign)||(actual+discount);
+  const autoAud=round2(actual/Math.max(.0001,rate)), autoDiscountAud=round2(discount/Math.max(.0001,rate));
+  const storedAud=v.amount_aud===0?0:(num(v.amount_aud)||autoAud), storedDiscount=v.discount_aud===0?0:(num(v.discount_aud)||autoDiscountAud);
+  return {id:v.id||'',receipt_date:v.receipt_date||today(),currency,fx_to_aud:rate,expected_amount_foreign:expected,discount_foreign:discount,amount_foreign:actual,
+    calculated_amount_aud:num(v.calculated_amount_aud)||autoAud,amount_aud:storedAud,amount_aud_manual:v.amount_aud_manual===true||Math.abs(storedAud-autoAud)>.004,
+    calculated_discount_aud:num(v.calculated_discount_aud)||autoDiscountAud,discount_aud:storedDiscount,discount_aud_manual:v.discount_aud_manual===true||Math.abs(storedDiscount-autoDiscountAud)>.004,
+    payment_method:v.payment_method||'',receipt_account:v.receipt_account||'',note:v.note||''};
+}
 function renderReceiptRows(){
   if(!$('receiptRows'))return;
   if(!receipts.length)receipts=[newReceipt()];
-  $('receiptRows').innerHTML=receipts.map((r,i)=>`<div class="rounded-xl border border-emerald-200 bg-emerald-50/30 p-3"><div class="mb-2 flex justify-between"><b class="text-sm text-emerald-800">收款 ${i+1}</b><button type="button" data-remove-receipt="${i}" class="rounded bg-red-50 px-2 py-1 text-xs font-bold text-red-600">刪除</button></div><div class="grid grid-cols-2 gap-2 md:grid-cols-4"><div><label class="field-label">收款日期</label><input class="field receiptInput" data-ri="${i}" data-rfield="receipt_date" type="date" value="${esc(r.receipt_date)}"></div><div><label class="field-label">幣別</label><select class="field receiptInput" data-ri="${i}" data-rfield="currency"><option value="AUD" ${r.currency==='AUD'?'selected':''}>AUD 澳幣</option><option value="TWD" ${r.currency==='TWD'?'selected':''}>TWD 台幣</option><option value="CNY" ${r.currency==='CNY'?'selected':''}>CNY 人民幣</option></select></div><div><label class="field-label">原幣金額</label><input class="field receiptInput" data-ri="${i}" data-rfield="amount_foreign" type="number" step="0.01" value="${r.amount_foreign||''}"></div><div><label class="field-label">匯率（原幣／AUD）</label><input class="field receiptInput" data-ri="${i}" data-rfield="fx_to_aud" type="number" step="0.0001" value="${r.fx_to_aud||1}"></div><div><label class="field-label">換算AUD</label><input class="field readonly" data-receipt-aud="${i}" readonly value="${round2(num(r.amount_foreign)/Math.max(.0001,num(r.fx_to_aud)||1)).toFixed(2)}"></div><div><label class="field-label">付款方式</label><select class="field receiptInput" data-ri="${i}" data-rfield="payment_method"><option value="">未設定</option>${['刷卡','現金','銀行轉帳','平台代收','微信','支付寶','其他'].map(x=>`<option ${r.payment_method===x?'selected':''}>${x}</option>`).join('')}</select></div><div><label class="field-label">收款帳戶</label><input class="field receiptInput" data-ri="${i}" data-rfield="receipt_account" value="${esc(r.receipt_account)}"></div><div><label class="field-label">備註</label><input class="field receiptInput" data-ri="${i}" data-rfield="note" value="${esc(r.note)}"></div></div></div>`).join('');
+  $('receiptRows').innerHTML=receipts.map((r,i)=>{
+    const rate=Math.max(.0001,num(r.fx_to_aud)||1), autoAud=round2(num(r.amount_foreign)/rate), autoDisc=round2(num(r.discount_foreign)/rate);
+    return `<div class="rounded-xl border border-emerald-200 bg-emerald-50/30 p-3"><div class="mb-2 flex justify-between"><b class="text-sm text-emerald-800">收款 ${i+1}</b><button type="button" data-remove-receipt="${i}" class="rounded bg-red-50 px-2 py-1 text-xs font-bold text-red-600">刪除</button></div><div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+    <div><label class="field-label">收款日期</label><input class="field receiptInput" data-ri="${i}" data-rfield="receipt_date" type="date" value="${esc(r.receipt_date)}"></div>
+    <div><label class="field-label">幣別</label><select class="field receiptInput" data-ri="${i}" data-rfield="currency"><option value="AUD" ${r.currency==='AUD'?'selected':''}>AUD 澳幣</option><option value="TWD" ${r.currency==='TWD'?'selected':''}>TWD 台幣</option><option value="CNY" ${r.currency==='CNY'?'selected':''}>CNY 人民幣</option></select></div>
+    <div><label class="field-label">原幣應收</label><input class="field receiptInput" data-ri="${i}" data-rfield="expected_amount_foreign" type="number" min="0" step="0.01" value="${r.expected_amount_foreign||''}"></div>
+    <div><label class="field-label">原幣優惠／尾差</label><input class="field receiptInput" data-ri="${i}" data-rfield="discount_foreign" type="number" min="0" step="0.01" value="${r.discount_foreign||''}"></div>
+    <div><label class="field-label">實際收款原幣</label><input class="field receiptInput" data-ri="${i}" data-rfield="amount_foreign" type="number" min="0" step="0.01" value="${r.amount_foreign||''}"></div>
+    <div><label class="field-label">匯率（原幣／AUD）</label><input class="field receiptInput" data-ri="${i}" data-rfield="fx_to_aud" type="number" step="0.0001" value="${r.fx_to_aud||1}"></div>
+    <div><label class="field-label">匯率試算實收 AUD</label><input class="field readonly" data-receipt-auto-aud="${i}" readonly value="${autoAud.toFixed(2)}"></div>
+    <div><label class="field-label">會計實收 AUD（可修正）</label><div class="flex gap-1"><input class="field receiptInput" data-ri="${i}" data-rfield="amount_aud" type="number" min="0" step="0.01" value="${num(r.amount_aud).toFixed(2)}"><button type="button" data-reset-receipt-aud="${i}" class="rounded bg-slate-100 px-2 text-[10px] font-bold">套用</button></div></div>
+    <div><label class="field-label">匯率試算優惠 AUD</label><input class="field readonly" data-receipt-auto-discount-aud="${i}" readonly value="${autoDisc.toFixed(2)}"></div>
+    <div><label class="field-label">會計優惠 AUD（可修正）</label><div class="flex gap-1"><input class="field receiptInput" data-ri="${i}" data-rfield="discount_aud" type="number" min="0" step="0.01" value="${num(r.discount_aud).toFixed(2)}"><button type="button" data-reset-receipt-discount-aud="${i}" class="rounded bg-slate-100 px-2 text-[10px] font-bold">套用</button></div></div>
+    <div><label class="field-label">付款方式</label><select class="field receiptInput" data-ri="${i}" data-rfield="payment_method"><option value="">未設定</option>${['刷卡','現金','銀行轉帳','平台代收','微信','支付寶','其他'].map(x=>`<option ${r.payment_method===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div><label class="field-label">收款帳戶</label><input class="field receiptInput" data-ri="${i}" data-rfield="receipt_account" value="${esc(r.receipt_account)}"></div>
+    <div class="md:col-span-2"><label class="field-label">備註</label><input class="field receiptInput" data-ri="${i}" data-rfield="note" value="${esc(r.note)}"></div></div>
+    <div class="mt-2 text-[11px] font-bold text-slate-500">原幣與匯率只產生試算值；會計實收AUD與會計優惠AUD可人工修正，報表與結清以會計值為準。</div></div>`;
+  }).join('');
 }
-function collectReceipts(){return receipts.filter(r=>num(r.amount_foreign)>0).map(r=>({...r,fx_to_aud:Math.max(.0001,num(r.fx_to_aud)||1),amount_foreign:num(r.amount_foreign),amount_aud:round2(num(r.amount_foreign)/Math.max(.0001,num(r.fx_to_aud)||1))}));}
+function normalizeReceiptAmounts(r,changed=''){
+  let expected=Math.max(0,num(r.expected_amount_foreign)), discount=Math.max(0,num(r.discount_foreign)), actual=Math.max(0,num(r.amount_foreign));
+  if(changed==='expected_amount_foreign') actual=Math.max(0,round2(expected-discount));
+  else if(changed==='discount_foreign') actual=Math.max(0,round2(expected-discount));
+  else if(changed==='amount_foreign') expected=round2(actual+discount);
+  if(expected<actual+discount) expected=round2(actual+discount);
+  r.expected_amount_foreign=expected;r.discount_foreign=discount;r.amount_foreign=actual;
+}
+function recalcReceiptAuto(r,force=false){
+  const rate=Math.max(.0001,num(r.fx_to_aud)||1);
+  r.calculated_amount_aud=round2(num(r.amount_foreign)/rate);
+  r.calculated_discount_aud=round2(num(r.discount_foreign)/rate);
+  if(force||!r.amount_aud_manual)r.amount_aud=r.calculated_amount_aud;
+  if(force||!r.discount_aud_manual)r.discount_aud=r.calculated_discount_aud;
+}
+function collectReceipts(){return receipts.filter(r=>num(r.amount_foreign)>0||num(r.discount_foreign)>0||num(r.amount_aud)>0||num(r.discount_aud)>0).map(r=>{normalizeReceiptAmounts(r);recalcReceiptAuto(r);return {...r,fx_to_aud:Math.max(.0001,num(r.fx_to_aud)||1),expected_amount_foreign:num(r.expected_amount_foreign),discount_foreign:num(r.discount_foreign),amount_foreign:num(r.amount_foreign),amount_aud:round2(num(r.amount_aud)),discount_aud:round2(num(r.discount_aud))};});}
 $('addReceiptBtn').addEventListener('click',()=>{receipts.push(newReceipt());renderReceiptRows();calculateFinancials();});
-function updateReceiptAudField(i){const r=receipts[i];if(!r)return;const aud=round2(num(r.amount_foreign)/Math.max(.0001,num(r.fx_to_aud)||1));const field=document.querySelector(`[data-receipt-aud="${i}"]`);if(field)field.value=aud.toFixed(2);}
-$('receiptRows').addEventListener('input',e=>{const el=e.target;if(!el.classList.contains('receiptInput'))return;const i=num(el.dataset.ri),field=el.dataset.rfield;if(!receipts[i])return;receipts[i][field]=['amount_foreign','fx_to_aud'].includes(field)?num(el.value):el.value;if(field==='currency'){receipts[i].fx_to_aud=el.value==='AUD'?1:el.value==='TWD'?(num($('fxRate').value)||23):4.75;renderReceiptRows();}else{updateReceiptAudField(i);}calculateFinancials();});
-$('receiptRows').addEventListener('change',e=>{const el=e.target;if(!el.classList.contains('receiptInput'))return;const i=num(el.dataset.ri);updateReceiptAudField(i);calculateFinancials();});
-$('receiptRows').addEventListener('click',e=>{const b=e.target.closest('[data-remove-receipt]');if(!b)return;receipts.splice(num(b.dataset.removeReceipt),1);if(!receipts.length)receipts=[newReceipt()];renderReceiptRows();calculateFinancials();});
+$('receiptRows').addEventListener('input',e=>{
+  const el=e.target;if(!el.classList.contains('receiptInput'))return;const i=num(el.dataset.ri),field=el.dataset.rfield;if(!receipts[i])return;
+  receipts[i][field]=['expected_amount_foreign','discount_foreign','amount_foreign','fx_to_aud','amount_aud','discount_aud'].includes(field)?num(el.value):el.value;
+  if(field==='amount_aud')receipts[i].amount_aud_manual=true;
+  if(field==='discount_aud')receipts[i].discount_aud_manual=true;
+  if(field==='currency'){receipts[i].fx_to_aud=el.value==='AUD'?1:el.value==='TWD'?(num($('fxRate').value)||23):4.75;recalcReceiptAuto(receipts[i]);renderReceiptRows();}
+  else if(['expected_amount_foreign','discount_foreign','amount_foreign'].includes(field)){normalizeReceiptAmounts(receipts[i],field);recalcReceiptAuto(receipts[i]);renderReceiptRows();}
+  else if(field==='fx_to_aud'){recalcReceiptAuto(receipts[i]);renderReceiptRows();}
+  calculateFinancials();
+});
+$('receiptRows').addEventListener('click',e=>{
+  const remove=e.target.closest('[data-remove-receipt]');if(remove){receipts.splice(num(remove.dataset.removeReceipt),1);if(!receipts.length)receipts=[newReceipt()];renderReceiptRows();calculateFinancials();return;}
+  const a=e.target.closest('[data-reset-receipt-aud]');if(a){const i=num(a.dataset.resetReceiptAud);receipts[i].amount_aud_manual=false;recalcReceiptAuto(receipts[i],false);renderReceiptRows();calculateFinancials();return;}
+  const d=e.target.closest('[data-reset-receipt-discount-aud]');if(d){const i=num(d.dataset.resetReceiptDiscountAud);receipts[i].discount_aud_manual=false;recalcReceiptAuto(receipts[i],false);renderReceiptRows();calculateFinancials();}
+});
 function calculateFinancials(){
   const grossAud=round2(orderItems.reduce((s,i)=>s+num(i.amount_aud),0));
   const discountAud=Math.min(grossAud,Math.max(0,num($('discountAud').value)));
-  const totalAud=round2(grossAud-discountAud);
+  const systemNetAud=round2(grossAud-discountAud);
+  if(!accountingAmountManual||$('amount').value==='')$('amount').value=systemNetAud;
+  const totalAud=Math.max(0,round2(num($('amount').value)));
+  const accountingAdjustment=round2(totalAud-systemNetAud);
   $('grossOrderAmount').value=grossAud;
   $('discountAud').value=discountAud;
-  $('amount').value=totalAud;
+  $('systemNetAmount').value=systemNetAud;
+  $('accountingAdjustmentAud').value=accountingAdjustment;
   $('itemsTotalAud').textContent=moneyAud(grossAud);
   const fx=Math.max(.0001,num($('fxRate').value)||23), base=round2(totalAud*fx);
   const taxType=$('salesTaxType').value, inclusive=$('taxInclusive').value==='true';
@@ -857,17 +919,19 @@ function calculateFinancials(){
   if(!$('revenueRecognitionDate').value) $('revenueRecognitionDate').value=firstDate;
   if(!$('receivableDueDate').value) $('receivableDueDate').value=firstDate;
   if(!$('payableDueDate').value) $('payableDueDate').value=firstDate;
-  const receiptList=collectReceipts(), receivedAudValue=round2(receiptList.reduce((s,r)=>s+r.amount_aud,0));
+  const receiptList=collectReceipts(), receivedAudValue=round2(receiptList.reduce((s,r)=>s+r.amount_aud,0)), receiptDiscountAudValue=round2(receiptList.reduce((s,r)=>s+r.discount_aud,0)), settledAudValue=round2(receivedAudValue+receiptDiscountAudValue);
   const firstServiceDateValue=orderItems.map(i=>i.service_date).filter(Boolean).sort()[0]||'';
   const prepaymentAud=round2(receiptList.filter(r=>firstServiceDateValue&&r.receipt_date<firstServiceDateValue).reduce((s,r)=>s+r.amount_aud,0));
   const latest=[...receiptList].sort((a,b)=>a.receipt_date.localeCompare(b.receipt_date)).at(-1);
   $('receivedAmount').value=receivedAudValue;$('receivedTwd').value=round2(receivedAudValue*fx);$('prepaymentAmount').value=prepaymentAud;$('prepaymentTwd').value=round2(prepaymentAud*fx);$('receiptDate').value=latest?.receipt_date||'';
-  $('receiptType').value=receivedAudValue<=0?'unpaid':receivedAudValue+0.009>=totalAud?(prepaymentAud>0?'prepayment':'full'):(prepaymentAud>0?'prepayment':'partial');
-  const arAudValue=Math.max(0,totalAud-receivedAudValue);
-  $('receivablePreview').textContent=moneyAud(arAudValue);$('receiptTotalAud').textContent=moneyAud(receivedAudValue);$('receiptPrepaymentAud').textContent=moneyAud(prepaymentAud);$('payablePreview').textContent=moneyAud(0);
+  $('receiptType').value=settledAudValue<=0?'unpaid':settledAudValue+0.009>=totalAud?(prepaymentAud>0?'prepayment':'full'):(prepaymentAud>0?'prepayment':'partial');
+  const arAudValue=Math.max(0,totalAud-settledAudValue);
+  $('receivablePreview').textContent=moneyAud(arAudValue);$('receiptTotalAud').textContent=moneyAud(receivedAudValue);$('receiptDiscountAud').textContent=moneyAud(receiptDiscountAudValue);$('receiptPrepaymentAud').textContent=moneyAud(prepaymentAud);$('payablePreview').textContent=moneyAud(0);
   $('saveSalesPreview').textContent=moneyAud(totalAud); $('saveCostPreview').textContent=moneyAud(receivedAudValue); $('saveProfitPreview').textContent=moneyAud(arAudValue);
 }
 ['fxRate','discountAud','salesTaxType','taxInclusive','costTotalTwd','costExTaxTwd','paidTwd'].forEach(id=>$(id).addEventListener('input',calculateFinancials));
+$('amount').addEventListener('input',()=>{accountingAmountManual=true;calculateFinancials();});
+$('resetAccountingAmountBtn').addEventListener('click',()=>{accountingAmountManual=false;$('amount').value='';calculateFinancials();});
 $('costTaxType').addEventListener('change',()=>{const total=num($('costTotalTwd').value);if($('costTaxType').value==='deductible'){const ex=round2(total/1.05);$('costExTaxTwd').value=ex;$('inputTaxTwd').value=round2(total-ex);}else{$('costExTaxTwd').value=total;$('inputTaxTwd').value=0;}calculateFinancials();});
 
 function collectItems(){ return orderItems.map((i,index)=>({id:i.id||'',line_no:index+1,item_kind:i.item_kind||kindFromCategory(i.category),category:i.category||'',service_date:i.service_date,service_time:i.service_time||'',trip_detail:(i.trip_detail||'').trim(),pax:Math.max(1,num(i.pax)),unit_price_aud:num(i.unit_price_aud),extra_amount_aud:num(i.extra_amount_aud),amount_aud:num(i.amount_aud),pickup_location:(i.pickup_location||'').trim(),pickup_address:(i.pickup_address||'').trim(),dropoff_address:(i.dropoff_address||'').trim(),ticket_info:(i.ticket_info||'').trim(),note:(i.note||'').trim()})); }
@@ -875,7 +939,7 @@ function collectOrder(){
   const items=collectItems(), first=[...items].sort((a,b)=>a.service_date.localeCompare(b.service_date))[0]||{};
   return {
     id:$('editingId').value||null,mode:$('mode').value,category:items.length===1?items[0].category:'多行程',customer:$('customer').value.trim(),external_order_number:$('externalOrderNumber').value.trim(),agent_name:$('agentName').value.trim(),order_date:$('orderDate').value,departure_time:first.service_date||'',service_time:first.service_time||'',pax:num($('pax').value),note:$('note').value.trim(),special_info:$('specialInfo').value.trim(),contact_phone:$('contactPhone').value.trim(),contact_email:$('contactEmail').value.trim(),pickup_location:first.pickup_location||'',pickup_address:first.pickup_address||'',dropoff_address:first.dropoff_address||'',flight_info:first.ticket_info||'',
-    currency:'AUD',fx_rate:num($('fxRate').value),accounting_fx_twd_per_aud:num($('fxRate').value),unit_price:items.length===1?items[0].unit_price_aud:'',gross_amount_aud:num($('grossOrderAmount').value),discount_aud:num($('discountAud').value),amount:num($('amount').value),sales_tax_type:$('salesTaxType').value,tax_inclusive:$('taxInclusive').value==='true',sales_ex_tax_twd:num($('salesExTaxTwd').value),output_tax_twd:num($('outputTaxTwd').value),sales_total_twd:num($('salesTotalTwd').value),revenue_recognition_date:$('revenueRecognitionDate').value,invoice_status:$('invoiceStatus').value,invoice_date:$('invoiceDate').value,invoice_number:$('invoiceNumber').value.trim(),buyer_tax_id:$('buyerTaxId').value.trim(),buyer_name:$('buyerName').value.trim(),
+    currency:'AUD',fx_rate:num($('fxRate').value),accounting_fx_twd_per_aud:num($('fxRate').value),unit_price:items.length===1?items[0].unit_price_aud:'',gross_amount_aud:num($('grossOrderAmount').value),discount_aud:num($('discountAud').value),amount:num($('systemNetAmount').value),accounting_amount_aud:num($('amount').value),sales_tax_type:$('salesTaxType').value,tax_inclusive:$('taxInclusive').value==='true',sales_ex_tax_twd:num($('salesExTaxTwd').value),output_tax_twd:num($('outputTaxTwd').value),sales_total_twd:num($('salesTotalTwd').value),revenue_recognition_date:$('revenueRecognitionDate').value,invoice_status:$('invoiceStatus').value,invoice_date:$('invoiceDate').value,invoice_number:$('invoiceNumber').value.trim(),buyer_tax_id:$('buyerTaxId').value.trim(),buyer_name:$('buyerName').value.trim(),
     receipt_type:$('receiptType').value,payment_currency:collectReceipts().length>1?'MIXED':(collectReceipts()[0]?.currency||'AUD'),payment_fx_to_aud:1,received_payment_amount:num($('receivedAmount').value),received_amount:num($('receivedAmount').value),received_twd:num($('receivedTwd').value),prepayment_amount:num($('prepaymentAmount').value),prepayment_twd:num($('prepaymentTwd').value),receipt_date:$('receiptDate').value,payment_method:'',receipt_account:'',receivable_due_date:$('receivableDueDate').value,
     supplier_name:$('supplierName').value.trim(),cost_tax_type:$('costTaxType').value,cost_ex_tax_twd:num($('costExTaxTwd').value),input_tax_twd:num($('inputTaxTwd').value),cost_total_twd:num($('costTotalTwd').value),paid_twd:num($('paidTwd').value),supplier_prepayment_twd:num($('supplierPrepaymentTwd').value),cost_document_type:$('costDocumentType').value,cost_document_number:$('costDocumentNumber').value.trim(),cost_document_date:$('costDocumentDate').value,cost_recognition_date:$('costRecognitionDate').value,payment_account:$('paymentAccount').value.trim(),payable_due_date:$('payableDueDate').value,payable_paid_date:$('payablePaidDate').value,
     case_status:$('caseStatus').value,accounting_note:$('accountingNote').value.trim(),cost_driver:0,cost_fuel:0,cost_ticket:0,cost_total_foreign:0
@@ -892,8 +956,8 @@ $('orderForm').addEventListener('submit',async e=>{
 
 function editOrder(id){
   const o=allOrders.find(x=>x.id===id);if(!o)return;setTab('orders');$('editingId').value=o.id;$('orderNumber').value=o.order_number;$('formHeading').textContent=`編輯 ${o.order_number}`;$('orderStatusDisplay').value=o.order_status==='cancelled'?'已取消':'有效';
-  const map={mode:'mode',customer:'customer',external_order_number:'externalOrderNumber',agent_name:'agentName',order_date:'orderDate',pax:'pax',contact_phone:'contactPhone',contact_email:'contactEmail',special_info:'specialInfo',fx_rate:'fxRate',sales_tax_type:'salesTaxType',sales_ex_tax_twd:'salesExTaxTwd',output_tax_twd:'outputTaxTwd',sales_total_twd:'salesTotalTwd',revenue_recognition_date:'revenueRecognitionDate',invoice_status:'invoiceStatus',invoice_date:'invoiceDate',invoice_number:'invoiceNumber',buyer_tax_id:'buyerTaxId',buyer_name:'buyerName',receivable_due_date:'receivableDueDate',supplier_name:'supplierName',cost_tax_type:'costTaxType',cost_ex_tax_twd:'costExTaxTwd',input_tax_twd:'inputTaxTwd',cost_total_twd:'costTotalTwd',paid_twd:'paidTwd',supplier_prepayment_twd:'supplierPrepaymentTwd',cost_document_type:'costDocumentType',cost_document_number:'costDocumentNumber',cost_document_date:'costDocumentDate',cost_recognition_date:'costRecognitionDate',payment_account:'paymentAccount',payable_due_date:'payableDueDate',payable_paid_date:'payablePaidDate',case_status:'caseStatus',accounting_note:'accountingNote',note:'note',discount_aud:'discountAud'};
-  Object.entries(map).forEach(([key,id2])=>{if($(id2))$(id2).value=o[key]??'';});$('taxInclusive').value=String(o.tax_inclusive!==false);
+  const map={mode:'mode',customer:'customer',external_order_number:'externalOrderNumber',agent_name:'agentName',order_date:'orderDate',pax:'pax',contact_phone:'contactPhone',contact_email:'contactEmail',special_info:'specialInfo',fx_rate:'fxRate',sales_tax_type:'salesTaxType',sales_ex_tax_twd:'salesExTaxTwd',output_tax_twd:'outputTaxTwd',sales_total_twd:'salesTotalTwd',revenue_recognition_date:'revenueRecognitionDate',invoice_status:'invoiceStatus',invoice_date:'invoiceDate',invoice_number:'invoiceNumber',buyer_tax_id:'buyerTaxId',buyer_name:'buyerName',receivable_due_date:'receivableDueDate',supplier_name:'supplierName',cost_tax_type:'costTaxType',cost_ex_tax_twd:'costExTaxTwd',input_tax_twd:'inputTaxTwd',cost_total_twd:'costTotalTwd',paid_twd:'paidTwd',supplier_prepayment_twd:'supplierPrepaymentTwd',cost_document_type:'costDocumentType',cost_document_number:'costDocumentNumber',cost_document_date:'costDocumentDate',cost_recognition_date:'costRecognitionDate',payment_account:'paymentAccount',payable_due_date:'payableDueDate',payable_paid_date:'payablePaidDate',case_status:'caseStatus',accounting_note:'accountingNote',note:'note',discount_aud:'discountAud',accounting_amount_aud:'amount'};
+  Object.entries(map).forEach(([key,id2])=>{if($(id2))$(id2).value=o[key]??'';});accountingAmountManual=Math.abs(num(o.accounting_amount_aud||o.amount)-num(o.amount))>.009;$('taxInclusive').value=String(o.tax_inclusive!==false);
   receipts=receiptsForOrder(o.id).map(newReceipt);if(!receipts.length)receipts=[newReceipt()];renderReceiptRows();const existing=orderItemsFor(o.id);orderItems=(existing.length?existing:[{category:o.category,service_date:o.departure_time,service_time:o.service_time,trip_detail:o.note,pax:o.pax,unit_price_aud:o.unit_price,amount_aud:o.amount,pickup_location:o.pickup_location,pickup_address:o.pickup_address,dropoff_address:o.dropoff_address,ticket_info:o.flight_info}]).map(newOrderItem);renderOrderItems();calculateFinancials();window.scrollTo({top:0,behavior:'smooth'});
 }
 window.editOrder=editOrder;
@@ -1082,8 +1146,10 @@ function simpleTable(headers,rows){ return `<div class="overflow-auto rounded-xl
 
 function orderSalesExTaxAud(o){
   const fx=Math.max(.0001,num(o.accounting_fx_twd_per_aud||o.fx_rate)||23);
-  return num(o.sales_ex_tax_twd)?round2(num(o.sales_ex_tax_twd)/fx):num(o.amount);
+  return num(o.sales_ex_tax_twd)?round2(num(o.sales_ex_tax_twd)/fx):accountingOrderAmount(o);
 }
+function orderAccountingAdjustmentAud(o){return round2(accountingOrderAmount(o)-num(o.amount));}
+
 function orderOutputTaxAud(o){ const fx=Math.max(.0001,num(o.accounting_fx_twd_per_aud||o.fx_rate)||23); return round2(num(o.output_tax_twd)/fx); }
 function orderGrossAud(o){return num(o.gross_amount_aud)||num(o.amount)+num(o.discount_aud);}
 function orderDiscountAud(o){return Math.max(0,num(o.discount_aud));}
@@ -1094,14 +1160,16 @@ function calcPnl(start,end){
   const rows=allOrders.filter(o=>o.order_status!=='cancelled' && dateInRange(o.revenue_recognition_date||o.departure_time,start,end));
   const grossRevenue=rows.reduce((s,o)=>s+orderGrossAud(o),0);
   const discounts=rows.reduce((s,o)=>s+orderDiscountAud(o),0);
+  const accountingAdjustments=rows.reduce((s,o)=>s+orderAccountingAdjustmentAud(o),0);
   const revenue=rows.reduce((s,o)=>s+orderSalesExTaxAud(o),0);
+  const receiptDiscounts=orderReceipts.filter(r=>dateInRange(r.receipt_date,start,end)).reduce((s,r)=>s+num(r.discount_aud),0);
   const dispatchCosts=allDispatches.filter(d=>dateInRange(d.dispatch_date,start,end)).reduce((s,d)=>s+num(d.total_cost_aud),0);
   const refunds=orderEvents.filter(e=>e.action_type==='refund'&&dateInRange(e.action_date,start,end)).reduce((s,e)=>s+num(e.amount),0);
   const entries=financeEntries.filter(e=>dateInRange(e.entry_date,start,end));
   const otherIncome=entries.filter(e=>e.entry_type==='other_income').reduce((s,e)=>s+financeExTaxAud(e),0);
   const opExpense=entries.filter(e=>e.entry_type==='operating_expense').reduce((s,e)=>s+financeExTaxAud(e),0);
   const otherExpense=entries.filter(e=>e.entry_type==='other_expense'||e.entry_type==='tax_payment').reduce((s,e)=>s+financeExTaxAud(e),0);
-  return {rows,grossRevenue,discounts,revenue,costs:dispatchCosts,dispatchCosts,refunds,otherIncome,opExpense,otherExpense,profit:revenue-dispatchCosts-refunds+otherIncome-opExpense-otherExpense};
+  return {rows,grossRevenue,discounts,accountingAdjustments,receiptDiscounts,revenue,costs:dispatchCosts,dispatchCosts,refunds,otherIncome,opExpense,otherExpense,profit:revenue-receiptDiscounts-dispatchCosts-refunds+otherIncome-opExpense-otherExpense};
 }
 
 function render401(start,end){
@@ -1122,9 +1190,9 @@ function render401(start,end){
 
 function renderReceipts(start,end){
   const rows=orderReceipts.filter(r=>dateInRange(r.receipt_date,start,end));
-  const total=rows.reduce((s,r)=>s+num(r.amount_aud),0);const by={AUD:0,TWD:0,CNY:0};rows.forEach(r=>by[r.currency]+=num(r.amount_foreign));
-  currentReportRows=rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [r.receipt_date,o.order_number,o.customer,r.currency,r.amount_foreign,r.fx_to_aud,r.amount_aud,r.payment_method,r.receipt_account,r.note];});
-  return reportTitle('多幣別收款明細（AUD）',`${start||'起始'} ～ ${end||'目前'}；保留原幣金額並統一換算AUD`) + summaryCards([['收款合計',moneyAud(total),'text-emerald-700'],['AUD原幣',`A$${round2(by.AUD).toLocaleString()}`,'text-blue-700'],['TWD原幣',`NT$${round2(by.TWD).toLocaleString()}`,'text-blue-700'],['CNY原幣',`¥${round2(by.CNY).toLocaleString()}`,'text-blue-700']]) + simpleTable(['日期','訂單','旅客','原幣','原幣金額','匯率／AUD','換算AUD','方式','帳戶','備註'],rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [esc(r.receipt_date),esc(o.order_number||r.order_id),esc(o.customer||'-'),esc(r.currency),num(r.amount_foreign).toLocaleString(),num(r.fx_to_aud),moneyAud(r.amount_aud),esc(r.payment_method||'-'),esc(r.receipt_account||'-'),esc(r.note||'-')];}));
+  const total=rows.reduce((s,r)=>s+num(r.amount_aud),0), discountTotal=rows.reduce((s,r)=>s+num(r.discount_aud),0);const by={AUD:0,TWD:0,CNY:0};rows.forEach(r=>by[r.currency]+=num(r.amount_foreign));
+  currentReportRows=rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [r.receipt_date,o.order_number,o.customer,r.currency,r.expected_amount_foreign,r.discount_foreign,r.amount_foreign,r.fx_to_aud,r.discount_aud,r.amount_aud,r.payment_method,r.receipt_account,r.note];});
+  return reportTitle('多幣別收款明細（AUD）',`${start||'起始'} ～ ${end||'目前'}；保留原幣應收、優惠與實收，統一換算AUD`) + summaryCards([['實際收款',moneyAud(total),'text-emerald-700'],['收款優惠／尾差',moneyAud(discountTotal),'text-rose-700'],['結清金額',moneyAud(total+discountTotal),'text-blue-700'],['TWD實收',`NT$${round2(by.TWD).toLocaleString()}`,'text-blue-700'],['CNY實收',`¥${round2(by.CNY).toLocaleString()}`,'text-blue-700']]) + simpleTable(['日期','訂單','旅客','原幣','原幣應收','優惠／尾差','實際收款','匯率／AUD','優惠AUD','實收AUD','方式','帳戶','備註'],rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [esc(r.receipt_date),esc(o.order_number||r.order_id),esc(o.customer||'-'),esc(r.currency),num(r.expected_amount_foreign||num(r.amount_foreign)+num(r.discount_foreign)).toLocaleString(),num(r.discount_foreign).toLocaleString(),num(r.amount_foreign).toLocaleString(),num(r.fx_to_aud),moneyAud(r.discount_aud),moneyAud(r.amount_aud),esc(r.payment_method||'-'),esc(r.receipt_account||'-'),esc(r.note||'-')];}));
 }
 function renderPrepayment(start,end){
   const rows=orderReceipts.filter(r=>{const o=allOrders.find(x=>x.id===r.order_id);if(!o||o.order_status==='cancelled'||(end&&r.receipt_date>end))return false;const first=firstServiceDate(r.order_id);return first&&r.receipt_date<first&&(!end||first>end);});
@@ -1141,8 +1209,8 @@ function renderPayable(start,end){
 }
 
 function renderPnl(start,end){
-  const p=calcPnl(start,end); currentReportRows=[['行程原價收入',p.grossRevenue],['減：訂單折扣',p.discounts],['折扣後營業收入',p.revenue],['出車成本',p.dispatchCosts],['退款',p.refunds],['其他收入',p.otherIncome],['營業費用',p.opExpense],['其他費用',p.otherExpense],['本期淨利',p.profit]];
-  return reportTitle('損益表（AUD）',`${start||'起始'} ～ ${end||'目前'}；收入扣除訂單折扣，成本僅取出車單`) + summaryCards([['原價收入',moneyAud(p.grossRevenue),'text-blue-700'],['訂單折扣',moneyAud(p.discounts),'text-red-700'],['淨營業收入',moneyAud(p.revenue),'text-blue-700'],['出車成本',moneyAud(p.dispatchCosts),'text-red-700'],['本期損益',moneyAud(p.profit),p.profit>=0?'text-emerald-700':'text-red-700']]) + simpleTable(['項目','金額 AUD'],[['行程原價收入',moneyAud(p.grossRevenue)],['減：訂單折扣',moneyAud(p.discounts)],['折扣後營業收入',`<b>${moneyAud(p.revenue)}</b>`],['減：出車成本',moneyAud(p.dispatchCosts)],['減：退款',moneyAud(p.refunds)],['加：其他收入',moneyAud(p.otherIncome)],['減：營業費用',moneyAud(p.opExpense)],['減：其他費用',moneyAud(p.otherExpense)],['本期淨利（損）',`<b>${moneyAud(p.profit)}</b>`]]);
+  const p=calcPnl(start,end); currentReportRows=[['行程原價收入',p.grossRevenue],['減：訂單折扣',p.discounts],['會計調整差額',p.accountingAdjustments],['會計營業收入',p.revenue],['減：收款優惠／尾差',p.receiptDiscounts],['出車成本',p.dispatchCosts],['退款',p.refunds],['其他收入',p.otherIncome],['營業費用',p.opExpense],['其他費用',p.otherExpense],['本期淨利',p.profit]];
+  return reportTitle('損益表（AUD）',`${start||'起始'} ～ ${end||'目前'}；收入扣除訂單折扣與收款優惠／尾差，成本僅取出車單`) + summaryCards([['原價收入',moneyAud(p.grossRevenue),'text-blue-700'],['訂單折扣',moneyAud(p.discounts),'text-red-700'],['會計調整',moneyAud(p.accountingAdjustments),p.accountingAdjustments>=0?'text-violet-700':'text-amber-700'],['會計營業收入',moneyAud(p.revenue),'text-blue-700'],['收款優惠／尾差',moneyAud(p.receiptDiscounts),'text-rose-700'],['出車成本',moneyAud(p.dispatchCosts),'text-red-700'],['本期損益',moneyAud(p.profit),p.profit>=0?'text-emerald-700':'text-red-700']]) + simpleTable(['項目','金額 AUD'],[['行程原價收入',moneyAud(p.grossRevenue)],['減：訂單折扣',moneyAud(p.discounts)],['系統折扣後收入',moneyAud(p.grossRevenue-p.discounts)],['加減：會計調整差額',moneyAud(p.accountingAdjustments)],['會計營業收入',`<b>${moneyAud(p.revenue)}</b>`],['減：收款優惠／尾差',moneyAud(p.receiptDiscounts)],['減：出車成本',moneyAud(p.dispatchCosts)],['減：退款',moneyAud(p.refunds)],['加：其他收入',moneyAud(p.otherIncome)],['減：營業費用',moneyAud(p.opExpense)],['減：其他費用',moneyAud(p.otherExpense)],['本期淨利（損）',`<b>${moneyAud(p.profit)}</b>`]]);
 }
 
 function cumulativeManual(end,type){return financeEntries.filter(e=>(!end||e.entry_date<=end)&&e.entry_type===type).reduce((s,e)=>s+financeAud(e),0);}
