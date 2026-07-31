@@ -52,7 +52,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.2</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2-multi｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -804,8 +804,8 @@ function calculateFinancials(){
   if(!$('receivableDueDate').value) $('receivableDueDate').value=firstDate;
   if(!$('payableDueDate').value) $('payableDueDate').value=firstDate;
   const receiptList=collectReceipts(), receivedAudValue=round2(receiptList.reduce((s,r)=>s+r.amount_aud,0));
-  const firstDate=orderItems.map(i=>i.service_date).filter(Boolean).sort()[0]||'';
-  const prepaymentAud=round2(receiptList.filter(r=>firstDate&&r.receipt_date<firstDate).reduce((s,r)=>s+r.amount_aud,0));
+  const firstServiceDateValue=orderItems.map(i=>i.service_date).filter(Boolean).sort()[0]||'';
+  const prepaymentAud=round2(receiptList.filter(r=>firstServiceDateValue&&r.receipt_date<firstServiceDateValue).reduce((s,r)=>s+r.amount_aud,0));
   const latest=[...receiptList].sort((a,b)=>a.receipt_date.localeCompare(b.receipt_date)).at(-1);
   $('receivedAmount').value=receivedAudValue;$('receivedTwd').value=round2(receivedAudValue*fx);$('prepaymentAmount').value=prepaymentAud;$('prepaymentTwd').value=round2(prepaymentAud*fx);$('receiptDate').value=latest?.receipt_date||'';
   $('receiptType').value=receivedAudValue<=0?'unpaid':receivedAudValue+0.009>=totalAud?(prepaymentAud>0?'prepayment':'full'):(prepaymentAud>0?'prepayment':'partial');
