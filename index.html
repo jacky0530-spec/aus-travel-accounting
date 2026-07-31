@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.1</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -43,7 +43,7 @@
 <label class="flex items-center gap-2 text-sm"><input class="rounded" id="rememberMe" type="checkbox"/> 記住帳號</label>
 <button class="w-full rounded-xl bg-blue-600 py-3 font-bold text-white hover:bg-blue-700" id="loginBtn">登入系統</button>
 <button class="hidden w-full rounded-xl bg-slate-100 py-2.5 font-bold text-slate-700 hover:bg-slate-200" id="registerBtn">建立第一位管理員帳號</button>
-<p class="text-center text-xs font-bold text-slate-500" id="registerHint">正在確認帳號建立權限…</p>
+<p class="text-center text-xs font-bold text-slate-500" id="registerHint">公開註冊已關閉；請使用既有帳號登入。</p>
 <p class="hidden rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700" id="loginError"></p>
 </div>
 </div>
@@ -52,7 +52,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.2</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.1.3</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2-multi｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -484,10 +484,10 @@ function scheduleSession(session, delay=80) {
   }, delay);
 }
 
-supabase.auth.onAuthStateChange((_event,session)=>scheduleSession(session));
-await refreshBootstrapStatus();
-const initial = await supabase.auth.getSession();
-scheduleSession(initial.data.session || null, 0);
+// 先綁定登入事件，再於背景初始化；任何初始化延遲都不會阻止登入按鈕。
+supabase.auth.onAuthStateChange((_event,session)=>{
+  setTimeout(()=>scheduleSession(session, 0), 0);
+});
 
 $('loginBtn').addEventListener('click', async()=>{
   const email = $('loginEmail').value.trim(), password = $('loginPassword').value;
@@ -504,6 +504,27 @@ $('loginBtn').addEventListener('click', async()=>{
   } catch(e) { showLogin(`登入失敗：${e.message}`); }
   finally { btn.disabled=false; btn.textContent='登入系統'; }
 });
+
+
+// 背景初始化，不使用頂層 await，避免登入頁卡死。
+(async()=>{
+  try { await refreshBootstrapStatus(); }
+  catch (e) { console.error('bootstrap status failed', e); }
+  try {
+    const initial = await withTimeout(supabase.auth.getSession(), 8000, '讀取登入狀態');
+    scheduleSession(initial?.data?.session || null, 0);
+  } catch (e) {
+    console.error('initial session failed', e);
+    showLogin();
+  }
+})();
+
+window.addEventListener('error', e=>{
+  console.error(e.error || e.message);
+  const hint=$('registerHint');
+  if(hint && hint.textContent.includes('正在確認')) hint.textContent='初始化失敗，但仍可直接按登入系統。';
+});
+window.addEventListener('unhandledrejection', e=>console.error('Unhandled promise rejection',e.reason));
 
 $('registerBtn').addEventListener('click', async()=>{
   if (!canCreateFirstUser) return showLogin('公開註冊已關閉，請由管理員建立帳號。');
