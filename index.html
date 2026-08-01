@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.4</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.5</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.4</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.5</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -1399,7 +1399,7 @@ function renderPrepayment(start,end){
     const received=round2(receipts.reduce((s,r)=>s+num(r.amount_aud),0));
     const receiptDiscount=round2(receipts.reduce((s,r)=>s+num(r.discount_aud),0));
     const firstDate=firstServiceDate(o.id);
-    const accountingAmount=round2(orderAccountingAud(o));
+    const accountingAmount=round2(accountingOrderAmount(o));
     const refund=round2(num(o.refund_total));
     const netOrderAmount=round2(Math.max(accountingAmount-refund,0));
     const unclosed=o.case_status!=='closed';
