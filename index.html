@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.1</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,8 +61,8 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.1</h1>
-<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2-multi｜帳號：V5.3-admin｜快捷：V5.5</p>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.3</h1>
+<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
 
@@ -622,6 +622,11 @@ async function loadAll() {
   tourAgents = agentRows || [];
   tourProducts = productRows || [];
   refreshDriverOptions();
+  // 成本代理與項目資料載入後，必須重新渲染訂單明細，否則初始下拉選單只會顯示「未指定代理」。
+  if (orderItems.length) {
+    syncBlankItemCostAgentsFromOrder(false);
+    renderOrderItems();
+  }
   renderOrderList(); renderFinanceList(); renderReport(); renderDriverList(); renderDispatchList(); renderDispatchItemChoices(); renderTourCostOptions(); renderTourCostList();
 }
 
@@ -813,7 +818,7 @@ $('clearListFilter').addEventListener('click',()=>{$('listStartDate').value='';$
 $('refreshBtn').addEventListener('click',loadAll);
 
 function newOrderItem(values={}){
-  return {uid:values.uid||values.id||crypto.randomUUID(),id:values.id||'',item_kind:values.item_kind||kindFromCategory(values.category||'一日遊'),category:values.category||'一日遊',service_date:values.service_date||today(),service_time:(values.service_time||'').slice(0,5),trip_detail:values.trip_detail||'',pax:num(values.pax)||num($('pax')?.value)||1,unit_price_aud:num(values.unit_price_aud),extra_amount_aud:num(values.extra_amount_aud),amount_aud:num(values.amount_aud),pickup_location:values.pickup_location||'',pickup_address:values.pickup_address||'',dropoff_address:values.dropoff_address||'',ticket_info:values.ticket_info||'',note:values.note||'',cost_agent_id:values.cost_agent_id||'',cost_product_id:values.cost_product_id||'',adult_qty:num(values.adult_qty),child_qty:num(values.child_qty),infant_qty:num(values.infant_qty),default_cost_aud:num(values.default_cost_aud),actual_cost_aud:num(values.actual_cost_aud),cost_manual:values.cost_manual===true,cost_payment_status:values.cost_payment_status||'unpaid',cost_paid_date:values.cost_paid_date||'',cost_note:values.cost_note||''};
+  return {uid:values.uid||values.id||crypto.randomUUID(),id:values.id||'',item_kind:values.item_kind||kindFromCategory(values.category||'一日遊'),category:values.category||'一日遊',service_date:values.service_date||today(),service_time:(values.service_time||'').slice(0,5),trip_detail:values.trip_detail||'',pax:num(values.pax)||num($('pax')?.value)||1,unit_price_aud:num(values.unit_price_aud),extra_amount_aud:num(values.extra_amount_aud),amount_aud:num(values.amount_aud),pickup_location:values.pickup_location||'',pickup_address:values.pickup_address||'',dropoff_address:values.dropoff_address||'',ticket_info:values.ticket_info||'',note:values.note||'',cost_agent_id:values.cost_agent_id||'',cost_product_id:values.cost_product_id||'',adult_qty:num(values.adult_qty),child_qty:num(values.child_qty),infant_qty:num(values.infant_qty),default_cost_aud:num(values.default_cost_aud),actual_cost_aud:num(values.actual_cost_aud),cost_manual:values.cost_manual===true,cost_payment_status:values.cost_payment_status||'unpaid',cost_paid_date:values.cost_paid_date||'',cost_note:values.cost_note||'',_parsed_cost_agent_name:values._parsed_cost_agent_name||'',_parsed_cost_product_name:values._parsed_cost_product_name||'',_parsed_mix:values._parsed_mix||null};
 }
 
 function tourAgentName(id){return tourAgents.find(a=>a.id===id)?.name||'';}
@@ -821,6 +826,89 @@ function tourProductById(id){return tourProducts.find(p=>p.id===id);}
 function tourAgentOptions(selected=''){return `<option value="">未指定代理</option>`+tourAgents.filter(a=>a.is_active||a.id===selected).map(a=>`<option value="${a.id}" ${a.id===selected?'selected':''}>${esc(a.name)}</option>`).join('');}
 function tourProductOptions(agentId,selected=''){return `<option value="">未指定成本項目</option>`+tourProducts.filter(p=>(!agentId||p.agent_id===agentId)&&(p.is_active||p.id===selected)).map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${esc(p.product_name)}</option>`).join('');}
 function calculateItemDefaultCost(item){const p=tourProductById(item.cost_product_id);if(!p)return 0;return round2(num(item.adult_qty)*num(p.adult_cost_aud)+num(item.child_qty)*num(p.child_cost_aud)+num(item.infant_qty)*num(p.infant_cost_aud));}
+
+function normalizeCostMatchText(value=''){
+  return String(value).toLowerCase().replace(/[\s　【】\[\]（）()＋+&＆／/、，,。:：;；►★☆!！?？'"“”‘’·—_-]/g,'')
+    .replace(/(?:中文團|中文团|一日遊|一日游|天天出發|天天出发|固定出發|固定出发|墨爾本|墨尔本|悉尼|雪梨|精品|經典|经典|必玩|行程|旅遊|旅游)/g,'');
+}
+function findTourAgentByName(name=''){
+  const key=normalizeCostMatchText(name);
+  if(!key)return null;
+  return tourAgents.find(a=>normalizeCostMatchText(a.name)===key)||tourAgents.find(a=>normalizeCostMatchText(a.name).includes(key)||key.includes(normalizeCostMatchText(a.name)))||null;
+}
+function syncBlankItemCostAgentsFromOrder(tryMatchProduct=true){
+  const masterName=$('agentName')?.value?.trim()||'';
+  const agent=findTourAgentByName(masterName);
+  if(!agent)return false;
+  let changed=false;
+  orderItems.forEach(item=>{
+    if(!item.cost_agent_id){
+      item.cost_agent_id=agent.id;
+      changed=true;
+    }
+    if(tryMatchProduct && item.cost_agent_id===agent.id && !item.cost_product_id && item.trip_detail){
+      const matched=matchTourProduct(agent.id,item.trip_detail);
+      if(matched.product){
+        item.cost_product_id=matched.product.id;
+        const mix=passengerMixFromText('',item.pax);
+        if(num(item.adult_qty)+num(item.child_qty)+num(item.infant_qty)<=0){
+          item.adult_qty=mix.adult;item.child_qty=mix.child;item.infant_qty=mix.infant;
+        }
+        item.default_cost_aud=calculateItemDefaultCost(item);
+        if(!item.cost_manual||num(item.actual_cost_aud)<=0)item.actual_cost_aud=item.default_cost_aud;
+        changed=true;
+      }
+    }
+  });
+  return changed;
+}
+function passengerMixFromText(text='',fallbackPax=1){
+  let adult=0,child=0,infant=0;
+  const a=String(text).match(/(?:成人|大人|大)\s*[：:]?\s*(\d+)|(?:(\d+)\s*(?:成人|大人|大)(?![a-z]))/i);
+  const c=String(text).match(/(?:兒童|儿童|小孩|小童|小)\s*[：:]?\s*(\d+)|(?:(\d+)\s*(?:兒童|儿童|小孩|小童|小)(?![a-z]))/i);
+  const i=String(text).match(/(?:嬰兒|婴儿|嬰|婴)\s*[：:]?\s*(\d+)|(?:(\d+)\s*(?:嬰兒|婴儿|嬰|婴)(?![a-z]))/i);
+  adult=num(a?.[1]||a?.[2]);child=num(c?.[1]||c?.[2]);infant=num(i?.[1]||i?.[2]);
+  if(adult+child+infant<=0)adult=Math.max(1,num(fallbackPax)||1);
+  return {adult,child,infant};
+}
+function tourProductMatchScore(query='',productName=''){
+  const q=normalizeCostMatchText(query),p=normalizeCostMatchText(productName);if(!q||!p)return 0;
+  let score=0;
+  if(q===p)score+=100;
+  if(q.includes(p)||p.includes(q))score+=20;
+  const keys=['蒸汽','小火車','火車','企鵝','企鹅','企鵝島','企鹅岛','大洋路','淘金','疏芬山','藍山','蓝山','動物園','动物园','獵人谷','猎人谷','品酒','市區','市区','堪培拉','史蒂芬港','海豚','臥龍崗','卧龙岗','水果園','水果园','危險角','危险角','可倫賓','可伦宾','螃蟹','莫寧頓','莫宁顿','吉朗','酒莊','酒庄','夜市','彩虹小屋','無尾熊','无尾熊','纜車','缆车','午餐'];
+  for(const k of keys)if(q.includes(normalizeCostMatchText(k))&&p.includes(normalizeCostMatchText(k)))score+=3;
+  const group=(String(query).match(/(\d+)\s*人/)||[])[1];
+  if(group&&num(group)>=20&&/(小團|小团|pm)/i.test(productName))score-=5;
+  if(/小團|小团/.test(query)&&/(小團|小团|pm)/i.test(productName))score+=4;
+  if(/巴士/.test(query)&&!/(小團|小团|pm)/i.test(productName))score+=2;
+  return score;
+}
+function matchTourProduct(agentId,query=''){
+  const candidates=tourProducts.filter(p=>p.agent_id===agentId&&p.is_active);
+  const ranked=candidates.map(p=>({p,score:tourProductMatchScore(query,p.product_name)})).sort((a,b)=>b.score-a.score);
+  if(!ranked.length||ranked[0].score<3)return {product:null,ambiguous:false};
+  return {product:ranked[0].p,ambiguous:ranked[1]&&ranked[1].score===ranked[0].score};
+}
+function applyParsedTourCosts(raw,masterAgentName='',warnings=[]){
+  const globalCostAgent=getLabel(raw,['成本代理'])||masterAgentName;
+  orderItems.forEach((item,index)=>{
+    const explicitAgent=item._parsed_cost_agent_name||globalCostAgent;
+    const agent=findTourAgentByName(explicitAgent);
+    if(!agent){if(item._parsed_cost_agent_name)warnings.push(`明細${index+1}找不到成本代理「${item._parsed_cost_agent_name}」`);return;}
+    item.cost_agent_id=agent.id;
+    const explicitProduct=item._parsed_cost_product_name||'';
+    const matched=matchTourProduct(agent.id,explicitProduct||item.trip_detail);
+    if(!matched.product){warnings.push(`明細${index+1}已帶入成本代理${agent.name}，但找不到相符成本項目，請人工選擇`);return;}
+    if(matched.ambiguous&&!explicitProduct){warnings.push(`明細${index+1}成本項目比對結果相近，請確認「${matched.product.product_name}」`);}
+    item.cost_product_id=matched.product.id;
+    const mix=item._parsed_mix||passengerMixFromText(raw,item.pax);
+    item.adult_qty=num(mix.adult);item.child_qty=num(mix.child);item.infant_qty=num(mix.infant);
+    item.default_cost_aud=calculateItemDefaultCost(item);
+    if(!item.cost_manual||num(item.actual_cost_aud)<=0)item.actual_cost_aud=item.default_cost_aud;
+    warnings.push(`明細${index+1}已自動套用${agent.name}／${matched.product.product_name}，預設成本${moneyAud(item.default_cost_aud)}`);
+  });
+}
 function driverOptions(selected=''){ return `<option value="">未指定</option>`+drivers.filter(d=>d.is_active||d.id===selected).map(d=>`<option value="${d.id}" ${d.id===selected?'selected':''}>${esc(d.name)}${d.vehicle_plate?`｜${esc(d.vehicle_plate)}`:''}</option>`).join(''); }
 function renderOrderItems(){
   if(!orderItems.length) orderItems=[newOrderItem()];
@@ -874,6 +962,9 @@ function renderOrderItems(){
 }
 $('addOrderItemBtn').addEventListener('click',e=>{e.preventDefault();orderItems.push(newOrderItem({pax:num($('pax').value)}));renderOrderItems();});
 $('pax').addEventListener('input',()=>{orderItems.forEach(i=>{if(!i.pax||i.pax===1)i.pax=Math.max(1,num($('pax').value));});renderOrderItems();});
+// 訂單主檔代理可作為成本代理預設值；只補空白欄位，不覆蓋人工選擇。
+$('agentName').addEventListener('change',()=>{if(syncBlankItemCostAgentsFromOrder(true))renderOrderItems();});
+$('agentName').addEventListener('blur',()=>{if(syncBlankItemCostAgentsFromOrder(true))renderOrderItems();});
 
 function resetOrder(){
   $('orderForm').reset(); receipts=[newReceipt()]; $('editingId').value=''; $('orderNumber').value='儲存時自動產生'; $('formHeading').textContent='新增訂單'; $('orderStatusDisplay').value='有效';
@@ -1037,7 +1128,7 @@ function editOrder(id){
   const o=allOrders.find(x=>x.id===id);if(!o)return;setTab('orders');$('editingId').value=o.id;$('orderNumber').value=o.order_number;$('formHeading').textContent=`編輯 ${o.order_number}`;$('orderStatusDisplay').value=o.order_status==='cancelled'?'已取消':'有效';
   const map={mode:'mode',customer:'customer',external_order_number:'externalOrderNumber',agent_name:'agentName',order_date:'orderDate',pax:'pax',contact_phone:'contactPhone',contact_email:'contactEmail',special_info:'specialInfo',fx_rate:'fxRate',sales_tax_type:'salesTaxType',sales_ex_tax_twd:'salesExTaxTwd',output_tax_twd:'outputTaxTwd',sales_total_twd:'salesTotalTwd',revenue_recognition_date:'revenueRecognitionDate',invoice_status:'invoiceStatus',invoice_date:'invoiceDate',invoice_number:'invoiceNumber',buyer_tax_id:'buyerTaxId',buyer_name:'buyerName',receivable_due_date:'receivableDueDate',supplier_name:'supplierName',cost_tax_type:'costTaxType',cost_ex_tax_twd:'costExTaxTwd',input_tax_twd:'inputTaxTwd',cost_total_twd:'costTotalTwd',paid_twd:'paidTwd',supplier_prepayment_twd:'supplierPrepaymentTwd',cost_document_type:'costDocumentType',cost_document_number:'costDocumentNumber',cost_document_date:'costDocumentDate',cost_recognition_date:'costRecognitionDate',payment_account:'paymentAccount',payable_due_date:'payableDueDate',payable_paid_date:'payablePaidDate',case_status:'caseStatus',accounting_note:'accountingNote',note:'note',discount_aud:'discountAud',accounting_amount_aud:'amount'};
   Object.entries(map).forEach(([key,id2])=>{if($(id2))$(id2).value=o[key]??'';});accountingAmountManual=Math.abs(num(o.accounting_amount_aud||o.amount)-num(o.amount))>.009;$('taxInclusive').value=String(o.tax_inclusive!==false);
-  receipts=receiptsForOrder(o.id).map(newReceipt);if(!receipts.length)receipts=[newReceipt()];renderReceiptRows();const existing=orderItemsFor(o.id);orderItems=(existing.length?existing:[{category:o.category,service_date:o.departure_time,service_time:o.service_time,trip_detail:o.note,pax:o.pax,unit_price_aud:o.unit_price,amount_aud:o.amount,pickup_location:o.pickup_location,pickup_address:o.pickup_address,dropoff_address:o.dropoff_address,ticket_info:o.flight_info}]).map(newOrderItem);renderOrderItems();calculateFinancials();window.scrollTo({top:0,behavior:'smooth'});
+  receipts=receiptsForOrder(o.id).map(newReceipt);if(!receipts.length)receipts=[newReceipt()];renderReceiptRows();const existing=orderItemsFor(o.id);orderItems=(existing.length?existing:[{category:o.category,service_date:o.departure_time,service_time:o.service_time,trip_detail:o.note,pax:o.pax,unit_price_aud:o.unit_price,amount_aud:o.amount,pickup_location:o.pickup_location,pickup_address:o.pickup_address,dropoff_address:o.dropoff_address,ticket_info:o.flight_info}]).map(newOrderItem);syncBlankItemCostAgentsFromOrder(true);renderOrderItems();calculateFinancials();window.scrollTo({top:0,behavior:'smooth'});
 }
 window.editOrder=editOrder;
 async function quickReceiveOrder(id){
@@ -1119,7 +1210,10 @@ function parseStructuredItem(block,defaultPax){
     pickup_address:getLabel(body,['接送地址','上車地址','出發地址']),
     dropoff_address:getLabel(body,['下車地址','送達地址']),
     ticket_info:[flight,special].filter(Boolean).join('；'),
-    note:getLabel(body,['明細備註','備註'])
+    note:getLabel(body,['明細備註','備註']),
+    _parsed_cost_agent_name:getLabel(body,['成本代理']),
+    _parsed_cost_product_name:getLabel(body,['成本項目','代理項目']),
+    _parsed_mix:passengerMixFromText(body,pax)
   });
 }
 function parseLineOrder(){
@@ -1162,6 +1256,8 @@ function parseLineOrder(){
     if(orderItems[0]){orderItems[0].pickup_address=address;orderItems[0].pickup_location=pickup;orderItems[0].ticket_info=[flight,special].filter(Boolean).join('；');}
   }
 
+  applyParsedTourCosts(raw,getLabel(masterRaw,['成本代理'])||agent,warnings);
+
   const explicitReceiptDate=normalizeDate(getLabel(masterRaw,['實收日期','收款日期']));
   const payDateMatch=raw.match(/[（(]\s*(\d{1,2})[\/-](\d{1,2})[^）)]*(?:支付|付款)/);if(explicitReceiptDate)$('receiptDate').value=explicitReceiptDate;else if(payDateMatch)$('receiptDate').value=normalizeDate(`${payDateMatch[1]}/${payDateMatch[2]}`);
   const receiptText=getLabel(masterRaw,['收款狀態','收款性質']);const parsedReceipt=receiptTypeFromText(receiptText);if(parsedReceipt)$('receiptType').value=parsedReceipt;
@@ -1189,8 +1285,8 @@ function parseLineOrder(){
   if(num($('receivedPaymentAmount').value)>0){receipts=[newReceipt({receipt_date:$('receiptDate').value||today(),currency:$('paymentCurrency').value||'AUD',fx_to_aud:num($('paymentFxToAud').value)||1,amount_foreign:num($('receivedPaymentAmount').value),payment_method:$('paymentMethod').value||'',receipt_account:$('receiptAccount').value||'',note:'由LINE文字解析'})];renderReceiptRows();}
   renderOrderItems();calculateFinancials();
   $('parseMessage').className=`mt-2 rounded-lg p-2 text-xs ${warnings.length?'bg-amber-100 text-amber-800':'bg-emerald-100 text-emerald-800'}`;
-  const prefix=structuredBlocks.length?`V5.2 已解析 ${structuredBlocks.length} 筆行程明細`:'V5.2 已完成解析';
-  $('parseMessage').textContent=warnings.length?`${prefix}，請確認：${warnings.join('、')}`:`${prefix}，請核對每筆日期、小計與收款匯率；司機請於出車單指定。`;
+  const prefix=structuredBlocks.length?`V5.2.2 已解析 ${structuredBlocks.length} 筆行程明細`:'V5.2.2 已完成解析';
+  $('parseMessage').textContent=warnings.length?`${prefix}，請確認：${warnings.join('、')}`:`${prefix}，請核對每筆日期、小計、成本代理／項目與收款匯率；司機請於出車單指定。`;
   $('parseMessage').classList.remove('hidden');
 }
 $('parseBtn').addEventListener('click',parseLineOrder);
