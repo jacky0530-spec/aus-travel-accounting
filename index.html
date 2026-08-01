@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.3</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.4</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.3</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.4</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -1390,11 +1390,67 @@ function renderReceipts(start,end){
   currentReportRows=rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [r.receipt_date,o.order_number,o.customer,r.currency,r.expected_amount_foreign,r.discount_foreign,r.amount_foreign,r.fx_to_aud,r.discount_aud,r.amount_aud,r.payment_method,r.receipt_account,r.note];});
   return reportTitle('多幣別收款明細（AUD）',`${start||'起始'} ～ ${end||'目前'}；保留原幣應收、優惠與實收，統一換算AUD`) + summaryCards([['實際收款',moneyAud(total),'text-emerald-700'],['收款優惠／尾差',moneyAud(discountTotal),'text-rose-700'],['結清金額',moneyAud(total+discountTotal),'text-blue-700'],['TWD實收',`NT$${round2(by.TWD).toLocaleString()}`,'text-blue-700'],['CNY實收',`¥${round2(by.CNY).toLocaleString()}`,'text-blue-700']]) + simpleTable(['日期','訂單','旅客','原幣','原幣應收','優惠／尾差','實際收款','匯率／AUD','優惠AUD','實收AUD','方式','帳戶','備註'],rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [esc(r.receipt_date),esc(o.order_number||r.order_id),esc(o.customer||'-'),esc(r.currency),num(r.expected_amount_foreign||num(r.amount_foreign)+num(r.discount_foreign)).toLocaleString(),num(r.discount_foreign).toLocaleString(),num(r.amount_foreign).toLocaleString(),num(r.fx_to_aud),moneyAud(r.discount_aud),moneyAud(r.amount_aud),esc(r.payment_method||'-'),esc(r.receipt_account||'-'),esc(r.note||'-')];}));
 }
+function reportModeName(mode){return ({Mode_A:'自營接單',Mode_B:'轉給同業',Mode_C:'同業轉入',Mode_D:'門票／飯店'})[mode]||'未分類';}
 function renderPrepayment(start,end){
-  const rows=orderReceipts.filter(r=>{const o=allOrders.find(x=>x.id===r.order_id);if(!o||o.order_status==='cancelled'||(end&&r.receipt_date>end))return false;const first=firstServiceDate(r.order_id);return first&&r.receipt_date<first&&(!end||first>end);});
-  const total=rows.reduce((s,r)=>s+num(r.amount_aud),0);
-  currentReportRows=rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [o.order_number,o.customer,r.receipt_date,firstServiceDate(r.order_id),r.currency,r.amount_foreign,r.fx_to_aud,r.amount_aud,r.receipt_account];});
-  return reportTitle('預收款報表（AUD）',`截至 ${end||'目前'}，逐筆列示服務前收取的不同幣別款項`) + summaryCards([['預收款總額',moneyAud(total),'text-amber-700'],['收款筆數',rows.length,'text-blue-700']]) + simpleTable(['訂單編號','旅客','收款日','首個行程日','原幣','原幣金額','匯率','預收AUD','帳戶'],rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [esc(o.order_number||r.order_id),esc(o.customer||'-'),esc(r.receipt_date),esc(firstServiceDate(r.order_id)),esc(r.currency),num(r.amount_foreign).toLocaleString(),num(r.fx_to_aud),moneyAud(r.amount_aud),esc(r.receipt_account||'-')];}));
+  const cutoff=end||today();
+  const validOrders=allOrders.filter(o=>o.order_status!=='cancelled');
+  const details=validOrders.map(o=>{
+    const receipts=orderReceipts.filter(r=>r.order_id===o.id&&(!cutoff||r.receipt_date<=cutoff));
+    const received=round2(receipts.reduce((s,r)=>s+num(r.amount_aud),0));
+    const receiptDiscount=round2(receipts.reduce((s,r)=>s+num(r.discount_aud),0));
+    const firstDate=firstServiceDate(o.id);
+    const accountingAmount=round2(orderAccountingAud(o));
+    const refund=round2(num(o.refund_total));
+    const netOrderAmount=round2(Math.max(accountingAmount-refund,0));
+    const unclosed=o.case_status!=='closed';
+    const unclosedOrderAmount=unclosed?netOrderAmount:0;
+    const unclosedReceived=unclosed?received:0;
+    const receivedLessUnclosed=round2(received-unclosedOrderAmount);
+    const prepayment=firstDate&&firstDate>cutoff?Math.min(received,netOrderAmount):0;
+    return {o,mode:o.mode||'',modeName:reportModeName(o.mode),firstDate,received,receiptDiscount,accountingAmount,netOrderAmount,unclosed,unclosedOrderAmount,unclosedReceived,receivedLessUnclosed,prepayment};
+  }).filter(x=>x.received>0||x.unclosedOrderAmount>0||x.prepayment>0);
+
+  const modeOrder=['Mode_A','Mode_B','Mode_C','Mode_D',''];
+  const groups=modeOrder.map(mode=>{
+    const rows=details.filter(x=>(x.mode||'')===mode);
+    return {mode,name:reportModeName(mode),rows,
+      orders:rows.length,
+      received:round2(rows.reduce((s,x)=>s+x.received,0)),
+      unclosedReceived:round2(rows.reduce((s,x)=>s+x.unclosedReceived,0)),
+      unclosedAmount:round2(rows.reduce((s,x)=>s+x.unclosedOrderAmount,0)),
+      difference:round2(rows.reduce((s,x)=>s+x.receivedLessUnclosed,0)),
+      prepayment:round2(rows.reduce((s,x)=>s+x.prepayment,0))
+    };
+  }).filter(g=>g.rows.length);
+
+  const totalReceived=round2(details.reduce((s,x)=>s+x.received,0));
+  const totalUnclosedReceived=round2(details.reduce((s,x)=>s+x.unclosedReceived,0));
+  const totalUnclosedAmount=round2(details.reduce((s,x)=>s+x.unclosedOrderAmount,0));
+  const totalDifference=round2(totalReceived-totalUnclosedAmount);
+  const totalPrepayment=round2(details.reduce((s,x)=>s+x.prepayment,0));
+
+  currentReportRows=details.map(x=>[x.modeName,x.o.order_number,x.o.customer,x.unclosed?'未結案':'已結案',x.firstDate,x.netOrderAmount,x.received,x.unclosedOrderAmount,x.receivedLessUnclosed,x.prepayment]);
+
+  const groupTable=simpleTable(
+    ['經營模式','訂單數','已收款 AUD','未結案已收款 AUD','未結案訂單金額 AUD','已收款－未結案訂單金額','預收款 AUD'],
+    groups.map(g=>[esc(g.name),g.orders,moneyAud(g.received),moneyAud(g.unclosedReceived),moneyAud(g.unclosedAmount),`<b class="${g.difference>=0?'text-emerald-700':'text-red-700'}">${moneyAud(g.difference)}</b>`,moneyAud(g.prepayment)])
+  );
+  const detailTable=simpleTable(
+    ['經營模式','訂單編號','旅客','案件狀態','首個行程日','訂單淨額 AUD','截至日已收 AUD','未結案訂單金額','已收－未結案金額','預收款 AUD'],
+    details.map(x=>[esc(x.modeName),esc(x.o.order_number||x.o.id),esc(x.o.customer||'-'),x.unclosed?'<span class="font-bold text-amber-700">未結案</span>':'已結案',esc(x.firstDate||'-'),moneyAud(x.netOrderAmount),moneyAud(x.received),moneyAud(x.unclosedOrderAmount),`<span class="${x.receivedLessUnclosed>=0?'text-emerald-700':'text-red-700'}">${moneyAud(x.receivedLessUnclosed)}</span>`,moneyAud(x.prepayment)])
+  );
+
+  return reportTitle('預收與未結案收款報表（AUD）',`截至 ${cutoff}；依經營模式分組。預收款為已收但首個服務日仍在截止日之後的金額；「已收款－未結案訂單金額」為管理差額，不等同現金或損益。`)+
+    summaryCards([
+      ['截至日已收款',moneyAud(totalReceived),'text-emerald-700'],
+      ['未結案已收款',moneyAud(totalUnclosedReceived),'text-blue-700'],
+      ['未結案訂單金額',moneyAud(totalUnclosedAmount),'text-amber-700'],
+      ['已收－未結案訂單金額',moneyAud(totalDifference),totalDifference>=0?'text-emerald-700':'text-red-700'],
+      ['預收款總額',moneyAud(totalPrepayment),'text-violet-700'],
+      ['經營模式數',groups.length,'text-slate-700']
+    ])+
+    `<div class="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><b>計算口徑：</b>未結案訂單金額＝案件狀態尚未結案之會計應收總額扣除退款；已收款扣除未結案訂單金額＝截至日累計實收－未結案訂單金額。此差額可能為負數，代表未結案訂單金額高於已收款。</div>`+
+    `<h3 class="mb-2 font-black">依經營模式彙總</h3>${groupTable}<h3 class="mb-2 mt-6 font-black">訂單明細</h3>${detailTable}`;
 }
 
 function renderPayable(start,end){
