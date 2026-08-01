@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.6</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.7</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.6</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.7</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -337,11 +337,11 @@
 <div><h2 class="text-xl font-black">會計報表中心</h2><p class="text-xs text-slate-500">所有管理報表統一以澳幣 AUD 顯示；成本只取自出車單</p></div>
 <div class="flex gap-2"><button class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white" id="exportReportBtn">匯出CSV</button><button class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold" onclick="window.print()">列印</button></div>
 </div>
-<div class="mt-4 grid gap-2 md:grid-cols-[160px_160px_200px_1fr]">
-<input class="field" id="reportStartDate" type="date"/>
-<input class="field" id="reportEndDate" type="date"/>
-<div id="prepaymentModeFilterWrap" class="hidden">
-<select class="field" id="prepaymentModeFilter" title="預收報表經營模式">
+<div class="mt-4 flex flex-wrap items-start gap-2" id="reportToolbar">
+<div class="w-[160px] shrink-0"><input class="field h-[42px] py-0" id="reportStartDate" type="date"/></div>
+<div class="w-[160px] shrink-0"><input class="field h-[42px] py-0" id="reportEndDate" type="date"/></div>
+<div class="hidden w-[200px] shrink-0" id="prepaymentModeFilterWrap">
+<select class="field h-[42px] py-0" id="prepaymentModeFilter" title="預收報表經營模式">
 <option value="ALL">全部經營模式</option>
 <option value="Mode_A">自營接單</option>
 <option value="Mode_B">轉給同業</option>
@@ -350,7 +350,7 @@
 <option value="">未分類</option>
 </select>
 </div>
-<div class="flex flex-wrap gap-2" id="reportButtons"></div>
+<div class="flex min-w-0 flex-1 flex-wrap items-center gap-2" id="reportButtons"></div>
 </div>
 </div>
 <div class="min-h-[650px] p-4 md:p-6" id="reportOutput"></div>
@@ -1342,7 +1342,7 @@ $('tourCostSearch').addEventListener('input',renderTourCostList);$('tourCostAgen
 $('addAgentBtn').addEventListener('click',async()=>{const name=prompt('新增代理名稱');if(!name?.trim())return;try{await api('/rest/v1/tour_agents',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({name:name.trim(),created_by:currentUser.id,updated_by:currentUser.id})});await loadAll();$('tourProductAgent').value=tourAgents.find(a=>a.name===name.trim())?.id||'';}catch(e){alert(`新增代理失敗：${e.message}`);}});
 
 const reportDefs=[['401','401試算'],['receipts','收款明細'],['prepayment','預收報表'],['payable','應付報表'],['pnl','損益表'],['balance','資產負債表'],['cashflow','現金流量表']];
-function renderReportButtons(){ $('reportButtons').innerHTML=reportDefs.map(([k,n])=>`<button data-report="${k}" class="reportBtn rounded-lg px-3 py-2 text-xs font-bold ${activeReport===k?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${n}</button>`).join(''); $('prepaymentModeFilterWrap').classList.toggle('hidden',activeReport!=='prepayment'); document.querySelectorAll('.reportBtn').forEach(b=>b.addEventListener('click',()=>{activeReport=b.dataset.report;renderReportButtons();renderReport();})); }
+function renderReportButtons(){ $('reportButtons').innerHTML=reportDefs.map(([k,n])=>`<button data-report="${k}" class="reportBtn h-[42px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-bold ${activeReport===k?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${n}</button>`).join(''); $('prepaymentModeFilterWrap').classList.toggle('hidden',activeReport!=='prepayment'); document.querySelectorAll('.reportBtn').forEach(b=>b.addEventListener('click',()=>{activeReport=b.dataset.report;renderReportButtons();renderReport();})); }
 renderReportButtons();
 function reportRange(){ return {start:$('reportStartDate').value,end:$('reportEndDate').value}; }
 function reportTitle(title,subtitle=''){ return `<div class="mb-5"><h3 class="text-2xl font-black">${title}</h3><p class="mt-1 text-xs text-slate-500">${subtitle}</p></div>`; }
