@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.7</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.8</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.7</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.8</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -348,6 +348,11 @@
 <option value="Mode_C">同業轉入</option>
 <option value="Mode_D">門票／飯店</option>
 <option value="">未分類</option>
+</select>
+</div>
+<div class="hidden w-[210px] shrink-0" id="prepaymentAgentFilterWrap">
+<select class="field h-[42px] py-0" id="prepaymentAgentFilter" title="預收報表代理／來源">
+<option value="ALL">全部代理／來源</option>
 </select>
 </div>
 <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2" id="reportButtons"></div>
@@ -1342,7 +1347,7 @@ $('tourCostSearch').addEventListener('input',renderTourCostList);$('tourCostAgen
 $('addAgentBtn').addEventListener('click',async()=>{const name=prompt('新增代理名稱');if(!name?.trim())return;try{await api('/rest/v1/tour_agents',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({name:name.trim(),created_by:currentUser.id,updated_by:currentUser.id})});await loadAll();$('tourProductAgent').value=tourAgents.find(a=>a.name===name.trim())?.id||'';}catch(e){alert(`新增代理失敗：${e.message}`);}});
 
 const reportDefs=[['401','401試算'],['receipts','收款明細'],['prepayment','預收報表'],['payable','應付報表'],['pnl','損益表'],['balance','資產負債表'],['cashflow','現金流量表']];
-function renderReportButtons(){ $('reportButtons').innerHTML=reportDefs.map(([k,n])=>`<button data-report="${k}" class="reportBtn h-[42px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-bold ${activeReport===k?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${n}</button>`).join(''); $('prepaymentModeFilterWrap').classList.toggle('hidden',activeReport!=='prepayment'); document.querySelectorAll('.reportBtn').forEach(b=>b.addEventListener('click',()=>{activeReport=b.dataset.report;renderReportButtons();renderReport();})); }
+function renderReportButtons(){ $('reportButtons').innerHTML=reportDefs.map(([k,n])=>`<button data-report="${k}" class="reportBtn h-[42px] shrink-0 whitespace-nowrap rounded-lg px-3 text-xs font-bold ${activeReport===k?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${n}</button>`).join(''); const isPrepayment=activeReport==='prepayment'; $('prepaymentModeFilterWrap').classList.toggle('hidden',!isPrepayment); $('prepaymentAgentFilterWrap').classList.toggle('hidden',!isPrepayment); document.querySelectorAll('.reportBtn').forEach(b=>b.addEventListener('click',()=>{activeReport=b.dataset.report;renderReportButtons();renderReport();})); }
 renderReportButtons();
 function reportRange(){ return {start:$('reportStartDate').value,end:$('reportEndDate').value}; }
 function reportTitle(title,subtitle=''){ return `<div class="mb-5"><h3 class="text-2xl font-black">${title}</h3><p class="mt-1 text-xs text-slate-500">${subtitle}</p></div>`; }
@@ -1401,14 +1406,24 @@ function renderReceipts(start,end){
   return reportTitle('多幣別收款明細（AUD）',`${start||'起始'} ～ ${end||'目前'}；保留原幣應收、優惠與實收，統一換算AUD`) + summaryCards([['實際收款',moneyAud(total),'text-emerald-700'],['收款優惠／尾差',moneyAud(discountTotal),'text-rose-700'],['結清金額',moneyAud(total+discountTotal),'text-blue-700'],['TWD實收',`NT$${round2(by.TWD).toLocaleString()}`,'text-blue-700'],['CNY實收',`¥${round2(by.CNY).toLocaleString()}`,'text-blue-700']]) + simpleTable(['日期','訂單','旅客','原幣','原幣應收','優惠／尾差','實際收款','匯率／AUD','優惠AUD','實收AUD','方式','帳戶','備註'],rows.map(r=>{const o=allOrders.find(x=>x.id===r.order_id)||{};return [esc(r.receipt_date),esc(o.order_number||r.order_id),esc(o.customer||'-'),esc(r.currency),num(r.expected_amount_foreign||num(r.amount_foreign)+num(r.discount_foreign)).toLocaleString(),num(r.discount_foreign).toLocaleString(),num(r.amount_foreign).toLocaleString(),num(r.fx_to_aud),moneyAud(r.discount_aud),moneyAud(r.amount_aud),esc(r.payment_method||'-'),esc(r.receipt_account||'-'),esc(r.note||'-')];}));
 }
 function reportModeName(mode){return ({Mode_A:'自營接單',Mode_B:'轉給同業',Mode_C:'同業轉入',Mode_D:'門票／飯店'})[mode]||'未分類';}
+function prepaymentAgentName(o){return String(o.agent_name||'').trim()||'未指定代理';}
+function syncPrepaymentAgentOptions(rows){
+  const select=$('prepaymentAgentFilter');
+  if(!select)return 'ALL';
+  const previous=select.value||'ALL';
+  const agents=[...new Set(rows.map(x=>x.agentName))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  select.innerHTML='<option value="ALL">全部代理／來源</option>'+agents.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  select.value=agents.includes(previous)?previous:'ALL';
+  return select.value;
+}
 function renderPrepayment(start,end){
   const cutoff=end||today();
   const selectedMode=$('prepaymentModeFilter')?.value??'ALL';
-  const validOrders=allOrders.filter(o=>o.order_status!=='cancelled'&&(selectedMode==='ALL'||(o.mode||'')===selectedMode));
-  const details=validOrders.map(o=>{
+  const modeOrders=allOrders.filter(o=>o.order_status!=='cancelled'&&(selectedMode==='ALL'||(o.mode||'')===selectedMode));
+  const modeDetails=modeOrders.map(o=>{
     const receipts=orderReceipts.filter(r=>r.order_id===o.id&&(!cutoff||r.receipt_date<=cutoff));
-    const received=round2(receipts.reduce((s,r)=>s+num(r.amount_aud),0));
-    const receiptDiscount=round2(receipts.reduce((s,r)=>s+num(r.discount_aud),0));
+    const received=round2(receipts.reduce((sum,r)=>sum+num(r.amount_aud),0));
+    const receiptDiscount=round2(receipts.reduce((sum,r)=>sum+num(r.discount_aud),0));
     const firstDate=firstServiceDate(o.id);
     const accountingAmount=round2(accountingOrderAmount(o));
     const refund=round2(num(o.refund_total));
@@ -1418,51 +1433,73 @@ function renderPrepayment(start,end){
     const unclosedReceived=unclosed?received:0;
     const receivedLessUnclosed=round2(received-unclosedOrderAmount);
     const prepayment=firstDate&&firstDate>cutoff?Math.min(received,netOrderAmount):0;
-    return {o,mode:o.mode||'',modeName:reportModeName(o.mode),firstDate,received,receiptDiscount,accountingAmount,netOrderAmount,unclosed,unclosedOrderAmount,unclosedReceived,receivedLessUnclosed,prepayment};
+    return {o,mode:o.mode||'',modeName:reportModeName(o.mode),agentName:prepaymentAgentName(o),firstDate,received,receiptDiscount,accountingAmount,netOrderAmount,unclosed,unclosedOrderAmount,unclosedReceived,receivedLessUnclosed,prepayment};
   }).filter(x=>x.received>0||x.unclosedOrderAmount>0||x.prepayment>0);
+
+  const selectedAgent=syncPrepaymentAgentOptions(modeDetails);
+  const details=modeDetails.filter(x=>selectedAgent==='ALL'||x.agentName===selectedAgent);
 
   const modeOrder=['Mode_A','Mode_B','Mode_C','Mode_D',''];
   const groups=modeOrder.map(mode=>{
     const rows=details.filter(x=>(x.mode||'')===mode);
     return {mode,name:reportModeName(mode),rows,
       orders:rows.length,
-      received:round2(rows.reduce((s,x)=>s+x.received,0)),
-      unclosedReceived:round2(rows.reduce((s,x)=>s+x.unclosedReceived,0)),
-      unclosedAmount:round2(rows.reduce((s,x)=>s+x.unclosedOrderAmount,0)),
-      difference:round2(rows.reduce((s,x)=>s+x.receivedLessUnclosed,0)),
-      prepayment:round2(rows.reduce((s,x)=>s+x.prepayment,0))
+      received:round2(rows.reduce((sum,x)=>sum+x.received,0)),
+      unclosedReceived:round2(rows.reduce((sum,x)=>sum+x.unclosedReceived,0)),
+      unclosedAmount:round2(rows.reduce((sum,x)=>sum+x.unclosedOrderAmount,0)),
+      difference:round2(rows.reduce((sum,x)=>sum+x.receivedLessUnclosed,0)),
+      prepayment:round2(rows.reduce((sum,x)=>sum+x.prepayment,0))
     };
   }).filter(g=>g.rows.length);
 
-  const totalReceived=round2(details.reduce((s,x)=>s+x.received,0));
-  const totalUnclosedReceived=round2(details.reduce((s,x)=>s+x.unclosedReceived,0));
-  const totalUnclosedAmount=round2(details.reduce((s,x)=>s+x.unclosedOrderAmount,0));
-  const totalDifference=round2(totalReceived-totalUnclosedAmount);
-  const totalPrepayment=round2(details.reduce((s,x)=>s+x.prepayment,0));
+  const agentGroups=[...new Set(modeDetails.map(x=>x.agentName))].sort((a,b)=>a.localeCompare(b,'zh-Hant')).map(agentName=>{
+    const rows=modeDetails.filter(x=>x.agentName===agentName);
+    return {agentName,rows,
+      orders:rows.length,
+      received:round2(rows.reduce((sum,x)=>sum+x.received,0)),
+      unclosedReceived:round2(rows.reduce((sum,x)=>sum+x.unclosedReceived,0)),
+      unclosedAmount:round2(rows.reduce((sum,x)=>sum+x.unclosedOrderAmount,0)),
+      difference:round2(rows.reduce((sum,x)=>sum+x.receivedLessUnclosed,0)),
+      prepayment:round2(rows.reduce((sum,x)=>sum+x.prepayment,0))
+    };
+  });
 
-  currentReportRows=details.map(x=>[x.modeName,x.o.order_number,x.o.customer,x.unclosed?'未結案':'已結案',x.firstDate,x.netOrderAmount,x.received,x.unclosedOrderAmount,x.receivedLessUnclosed,x.prepayment]);
+  const totalReceived=round2(details.reduce((sum,x)=>sum+x.received,0));
+  const totalUnclosedReceived=round2(details.reduce((sum,x)=>sum+x.unclosedReceived,0));
+  const totalUnclosedAmount=round2(details.reduce((sum,x)=>sum+x.unclosedOrderAmount,0));
+  const totalDifference=round2(totalReceived-totalUnclosedAmount);
+  const totalPrepayment=round2(details.reduce((sum,x)=>sum+x.prepayment,0));
+
+  currentReportRows=details.map(x=>[x.modeName,x.agentName,x.o.order_number,x.o.customer,x.unclosed?'未結案':'已結案',x.firstDate,x.netOrderAmount,x.received,x.unclosedOrderAmount,x.receivedLessUnclosed,x.prepayment]);
 
   const groupTable=simpleTable(
     ['經營模式','訂單數','已收款 AUD','未結案已收款 AUD','未結案訂單金額 AUD','已收款－未結案訂單金額','預收款 AUD'],
     groups.map(g=>[esc(g.name),g.orders,moneyAud(g.received),moneyAud(g.unclosedReceived),moneyAud(g.unclosedAmount),`<b class="${g.difference>=0?'text-emerald-700':'text-red-700'}">${moneyAud(g.difference)}</b>`,moneyAud(g.prepayment)])
   );
+  const agentTable=simpleTable(
+    ['代理／來源','訂單數','已收款 AUD','未結案已收款 AUD','未結案訂單金額 AUD','已收款－未結案訂單金額','預收款 AUD'],
+    agentGroups.map(g=>[esc(g.agentName),g.orders,moneyAud(g.received),moneyAud(g.unclosedReceived),moneyAud(g.unclosedAmount),`<b class="${g.difference>=0?'text-emerald-700':'text-red-700'}">${moneyAud(g.difference)}</b>`,moneyAud(g.prepayment)])
+  );
   const detailTable=simpleTable(
-    ['經營模式','訂單編號','旅客','案件狀態','首個行程日','訂單淨額 AUD','截至日已收 AUD','未結案訂單金額','已收－未結案金額','預收款 AUD'],
-    details.map(x=>[esc(x.modeName),esc(x.o.order_number||x.o.id),esc(x.o.customer||'-'),x.unclosed?'<span class="font-bold text-amber-700">未結案</span>':'已結案',esc(x.firstDate||'-'),moneyAud(x.netOrderAmount),moneyAud(x.received),moneyAud(x.unclosedOrderAmount),`<span class="${x.receivedLessUnclosed>=0?'text-emerald-700':'text-red-700'}">${moneyAud(x.receivedLessUnclosed)}</span>`,moneyAud(x.prepayment)])
+    ['經營模式','代理／來源','訂單編號','旅客','案件狀態','首個行程日','訂單淨額 AUD','截至日已收 AUD','未結案訂單金額','已收－未結案金額','預收款 AUD'],
+    details.map(x=>[esc(x.modeName),esc(x.agentName),esc(x.o.order_number||x.o.id),esc(x.o.customer||'-'),x.unclosed?'<span class="font-bold text-amber-700">未結案</span>':'已結案',esc(x.firstDate||'-'),moneyAud(x.netOrderAmount),moneyAud(x.received),moneyAud(x.unclosedOrderAmount),`<span class="${x.receivedLessUnclosed>=0?'text-emerald-700':'text-red-700'}">${moneyAud(x.receivedLessUnclosed)}</span>`,moneyAud(x.prepayment)])
   );
 
   const selectedModeName=selectedMode==='ALL'?'全部經營模式':reportModeName(selectedMode);
-  return reportTitle('預收與未結案收款報表（AUD）',`截至 ${cutoff}；目前顯示：${selectedModeName}。預收款為已收但首個服務日仍在截止日之後的金額；「已收款－未結案訂單金額」為管理差額，不等同現金或損益。`)+
+  const selectedAgentName=selectedAgent==='ALL'?'全部代理／來源':selectedAgent;
+  return reportTitle('預收與未結案收款報表（AUD）',`截至 ${cutoff}；經營模式：${selectedModeName}；代理／來源：${selectedAgentName}。代理小計依目前經營模式計算，訂單明細則依代理篩選。`)+
     summaryCards([
       ['截至日已收款',moneyAud(totalReceived),'text-emerald-700'],
       ['未結案已收款',moneyAud(totalUnclosedReceived),'text-blue-700'],
       ['未結案訂單金額',moneyAud(totalUnclosedAmount),'text-amber-700'],
       ['已收－未結案訂單金額',moneyAud(totalDifference),totalDifference>=0?'text-emerald-700':'text-red-700'],
       ['預收款總額',moneyAud(totalPrepayment),'text-violet-700'],
-      ['經營模式數',groups.length,'text-slate-700']
+      ['代理數',agentGroups.length,'text-slate-700']
     ])+
-    `<div class="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><b>計算口徑：</b>未結案訂單金額＝案件狀態尚未結案之會計應收總額扣除退款；已收款扣除未結案訂單金額＝截至日累計實收－未結案訂單金額。此差額可能為負數，代表未結案訂單金額高於已收款。</div>`+
-    `<h3 class="mb-2 font-black">依經營模式彙總</h3>${groupTable}<h3 class="mb-2 mt-6 font-black">訂單明細</h3>${detailTable}`;
+    `<div class="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><b>計算口徑：</b>未結案訂單金額＝案件狀態尚未結案之會計應收總額扣除退款；已收款扣除未結案訂單金額＝截至日累計實收－未結案訂單金額。代理小計不受代理明細篩選影響，可用來比較同一經營模式下各代理。</div>`+
+    `<h3 class="mb-2 font-black">依經營模式彙總</h3>${groupTable}`+
+    `<h3 class="mb-2 mt-6 font-black">依代理／來源小計</h3>${agentTable}`+
+    `<h3 class="mb-2 mt-6 font-black">訂單明細－${esc(selectedAgentName)}</h3>${detailTable}`;
 }
 
 function renderPayable(start,end){
@@ -1515,7 +1552,7 @@ function renderCashflow(start,end){
 }
 
 function renderReport(){ if(!$('reportOutput'))return; const {start,end}=reportRange(); let html=''; if(activeReport==='401')html=render401(start,end); if(activeReport==='receipts')html=renderReceipts(start,end); if(activeReport==='prepayment')html=renderPrepayment(start,end); if(activeReport==='payable')html=renderPayable(start,end); if(activeReport==='pnl')html=renderPnl(start,end); if(activeReport==='balance')html=renderBalance(start,end); if(activeReport==='cashflow')html=renderCashflow(start,end); $('reportOutput').innerHTML=html; }
-$('reportStartDate').addEventListener('change',renderReport); $('reportEndDate').addEventListener('change',renderReport); $('prepaymentModeFilter').addEventListener('change',renderReport);
+$('reportStartDate').addEventListener('change',renderReport); $('reportEndDate').addEventListener('change',renderReport); $('prepaymentModeFilter').addEventListener('change',()=>{$('prepaymentAgentFilter').value='ALL';renderReport();}); $('prepaymentAgentFilter').addEventListener('change',renderReport);
 
 $('exportReportBtn').addEventListener('click',()=>{
   const rows=currentReportRows||[]; if(!rows.length)return alert('目前沒有可匯出的資料。');
