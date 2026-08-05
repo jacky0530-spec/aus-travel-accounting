@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.9</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.2.9</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.1</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -403,14 +403,47 @@ const saveSession = session => { if(session) localStorage.setItem(AUTH_STORAGE_K
 const readSession = () => { try { return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)||'null'); } catch { return null; } };
 async function refreshStoredSession(session){
   if(!session?.refresh_token) return null;
-  const res=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:session.refresh_token})});
-  if(!res.ok){saveSession(null);return null;}
-  const data=await res.json(); const next={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)}; saveSession(next); return next;
+  if(refreshWork) return refreshWork;
+  refreshWork=(async()=>{
+    try{
+      const res=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:session.refresh_token})});
+      if(!res.ok){
+        const detail=await res.json().catch(()=>({}));
+        console.warn('session refresh failed',detail);
+        saveSession(null);
+        return null;
+      }
+      const data=await res.json();
+      const next={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)};
+      saveSession(next);
+      accessToken=next.access_token||'';
+      currentUser=next.user||currentUser;
+      emitAuth('TOKEN_REFRESHED',next);
+      return next;
+    }catch(e){
+      console.error('session refresh error',e);
+      return null;
+    }finally{refreshWork=null;}
+  })();
+  return refreshWork;
+}
+async function ensureFreshSession(force=false){
+  let session=readSession();
+  if(!session?.access_token) return null;
+  const now=Math.floor(Date.now()/1000);
+  if(force||!session.expires_at||session.expires_at<=now+90){
+    session=await refreshStoredSession(session);
+  }
+  if(session?.access_token){
+    accessToken=session.access_token;
+    currentUser=session.user||currentUser;
+  }
+  return session;
 }
 const supabase = { auth: {
   onAuthStateChange(fn){ authListeners.add(fn); queueMicrotask(()=>fn('INITIAL_SESSION',readSession())); return {data:{subscription:{unsubscribe:()=>authListeners.delete(fn)}}}; },
   async getSession(){ let session=readSession(); if(session?.expires_at && session.expires_at<=Math.floor(Date.now()/1000)+30) session=await refreshStoredSession(session); return {data:{session},error:null}; },
-  async signInWithPassword({email,password}){ try { const res=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})}); if(!res.ok) throw await parseAuthError(res); const data=await res.json(); const session={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)}; saveSession(session); emitAuth('SIGNED_IN',session); return {data:{session,user:session.user},error:null}; } catch(error){ return {data:{session:null,user:null},error}; } },
+  async signInWithPassword({email,password}){ try { latestAuthIssuedAt=Date.now(); const res=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})}); if(!res.ok) throw await parseAuthError(res); const data=await res.json(); const session={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)}; saveSession(session); emitAuth('SIGNED_IN',session); return {data:{session,user:session.user},error:null}; } catch(error){ return {data:{session:null,user:null},error}; } },
   async signUp({email,password}){ try { const res=await fetch(`${SUPABASE_URL}/auth/v1/signup`,{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})}); if(!res.ok) throw await parseAuthError(res); const data=await res.json(); const session=data.access_token?{...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)}:null; if(session){saveSession(session);emitAuth('SIGNED_IN',session);} return {data:{session,user:data.user||session?.user||null},error:null}; } catch(error){ return {data:{session:null,user:null},error}; } },
   async signOut(){ const session=readSession(); try { if(session?.access_token) await fetch(`${SUPABASE_URL}/auth/v1/logout`,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`}}); } catch{} saveSession(null); emitAuth('SIGNED_OUT',null); return {error:null}; }
 }};
@@ -439,6 +472,8 @@ let currentReportRows = [];
 let authSequence = 0;
 let sessionTimer = null;
 let sessionWork = Promise.resolve();
+let refreshWork = null;
+let latestAuthIssuedAt = 0;
 let accountingAmountManual = false;
 
 const $ = id => document.getElementById(id);
@@ -483,8 +518,12 @@ async function refreshBootstrapStatus() {
   }
 }
 
-async function api(path, options={}) {
-  if (!accessToken) throw new Error('登入憑證不存在，請重新登入。');
+async function api(path, options={}, retryAuth=true) {
+  let session=await ensureFreshSession(false);
+  if(!session?.access_token) {
+    showLogin('登入已逾時，請重新登入。');
+    throw new Error('登入已逾時，請重新登入。');
+  }
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(), 20000);
   try {
@@ -501,6 +540,15 @@ async function api(path, options={}) {
     const text = await res.text();
     let data = null;
     if (text) { try { data = JSON.parse(text); } catch { data = text; } }
+    const authExpired=res.status===401||/jwt\s*expired|invalid jwt|token.*expired/i.test(String(data?.message||data?.error_description||data?.error||text||''));
+    if(!res.ok&&authExpired&&retryAuth){
+      clearTimeout(timer);
+      const refreshed=await ensureFreshSession(true);
+      if(refreshed?.access_token) return api(path,options,false);
+      await supabase.auth.signOut();
+      showLogin('登入已逾時，請重新登入。');
+      throw new Error('登入已逾時，請重新登入。');
+    }
     if (!res.ok) throw new Error(data?.message || data?.hint || text || `HTTP ${res.status}`);
     return data;
   } catch (e) {
@@ -556,7 +604,8 @@ function scheduleSession(session, delay=80) {
 }
 
 // 先綁定登入事件，再於背景初始化；任何初始化延遲都不會阻止登入按鈕。
-supabase.auth.onAuthStateChange((_event,session)=>{
+supabase.auth.onAuthStateChange((event,session)=>{
+  if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') latestAuthIssuedAt=Date.now();
   setTimeout(()=>scheduleSession(session, 0), 0);
 });
 
@@ -582,8 +631,9 @@ $('loginBtn').addEventListener('click', async()=>{
   try { await refreshBootstrapStatus(); }
   catch (e) { console.error('bootstrap status failed', e); }
   try {
+    const startedAt=Date.now();
     const initial = await withTimeout(supabase.auth.getSession(), 8000, '讀取登入狀態');
-    scheduleSession(initial?.data?.session || null, 0);
+    if(latestAuthIssuedAt<=startedAt) scheduleSession(initial?.data?.session || null, 0);
   } catch (e) {
     console.error('initial session failed', e);
     showLogin();
@@ -1135,6 +1185,8 @@ function collectOrder(){
 $('orderForm').addEventListener('submit',async e=>{
   e.preventDefault(); const payload=collectOrder(), items=collectItems(), receiptPayload=collectReceipts();
   if(!payload.customer||!payload.order_date||!items.length||items.some(i=>!i.service_date)||payload.amount<=0) return alert('請確認旅客姓名、接單日期、每筆行程日期與訂單總額。');
+  const invalidReceipt=receiptPayload.find(r=>round2(num(r.amount_aud)+num(r.discount_aud))<=0);
+  if(invalidReceipt)return alert('每筆收款的「會計實收AUD＋會計優惠AUD」必須大於0；全額優惠時可填實收0、優惠大於0。');
   const btn=$('saveOrderBtn');btn.disabled=true;btn.textContent='寫入中...';
   try{const result=await api('/rest/v1/rpc/save_order_v7',{method:'POST',body:JSON.stringify({p_order:payload,p_items:items,p_receipts:receiptPayload})});alert(`訂單已${result.updated?'更新':'建立'}：${result.orderNumber}（${result.itemCount}筆行程／${result.receiptCount||0}筆收款）`);resetOrder();await loadAll();}
   catch(e){alert(`寫入失敗：${e.message}`);}finally{btn.disabled=false;btn.textContent='儲存訂單';}
