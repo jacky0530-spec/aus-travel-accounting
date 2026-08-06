@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.1</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.2</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.1</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.2</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -1059,8 +1059,8 @@ function renderReceiptRows(){
     <div><label class="field-label">收款日期</label><input class="field receiptInput" data-ri="${i}" data-rfield="receipt_date" type="date" value="${esc(r.receipt_date)}"></div>
     <div><label class="field-label">幣別</label><select class="field receiptInput" data-ri="${i}" data-rfield="currency"><option value="AUD" ${r.currency==='AUD'?'selected':''}>AUD 澳幣</option><option value="TWD" ${r.currency==='TWD'?'selected':''}>TWD 台幣</option><option value="CNY" ${r.currency==='CNY'?'selected':''}>CNY 人民幣</option></select></div>
     <div><label class="field-label">原幣應收</label><input class="field receiptInput" data-ri="${i}" data-rfield="expected_amount_foreign" type="number" min="0" step="0.01" value="${r.expected_amount_foreign||''}"></div>
-    <div><label class="field-label">原幣優惠／尾差</label><input class="field receiptInput" data-ri="${i}" data-rfield="discount_foreign" type="number" min="0" step="0.01" value="${r.discount_foreign||''}"></div>
-    <div><label class="field-label">實際收款原幣</label><input class="field receiptInput" data-ri="${i}" data-rfield="amount_foreign" type="number" min="0" step="0.01" value="${r.amount_foreign||''}"></div>
+    <div><label class="field-label">原幣優惠／尾差</label><input class="field receiptInput" data-ri="${i}" data-rfield="discount_foreign" type="number" min="0" step="0.01" value="${r.discount_foreign??''}"></div>
+    <div><label class="field-label">實際收款原幣</label><input class="field receiptInput" data-ri="${i}" data-rfield="amount_foreign" type="number" min="0" step="0.01" value="${r.amount_foreign??''}"></div>
     <div><label class="field-label">匯率（原幣／AUD）</label><input class="field receiptInput" data-ri="${i}" data-rfield="fx_to_aud" type="number" step="0.0001" value="${r.fx_to_aud||1}"></div>
     <div><label class="field-label">匯率試算實收 AUD</label><input class="field readonly" data-receipt-auto-aud="${i}" readonly value="${autoAud.toFixed(2)}"></div>
     <div><label class="field-label">會計實收 AUD（可修正）</label><div class="flex gap-1"><input class="field receiptInput" data-ri="${i}" data-rfield="amount_aud" type="number" min="0" step="0.01" value="${num(r.amount_aud).toFixed(2)}"><button type="button" data-reset-receipt-aud="${i}" class="rounded bg-slate-100 px-2 text-[10px] font-bold">套用</button></div></div>
@@ -1096,8 +1096,8 @@ function syncReceiptRowDom(i,sourceEl=null){
     if(el&&el!==sourceEl)el.value=value;
   };
   setField('expected_amount_foreign',r.expected_amount_foreign||'');
-  setField('discount_foreign',r.discount_foreign||'');
-  setField('amount_foreign',r.amount_foreign||'');
+  setField('discount_foreign',r.discount_foreign??'');
+  setField('amount_foreign',r.amount_foreign??'');
   setField('fx_to_aud',r.fx_to_aud||1);
   setField('amount_aud',num(r.amount_aud).toFixed(2));
   setField('discount_aud',num(r.discount_aud).toFixed(2));
