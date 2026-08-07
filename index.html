@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.3</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.4</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.3</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.4</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -712,8 +712,13 @@ function setTab(name) {
 document.querySelectorAll('.mainTab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
 
 
-async function adminUsersApi(payload) {
+async function adminUsersApi(payload, retryAuth=true) {
   if (currentRole !== 'admin') throw new Error('僅管理員可管理帳號。');
+  const session = await ensureFreshSession(false);
+  if(!session?.access_token){
+    showLogin('登入已逾時，請重新登入。');
+    throw new Error('登入已逾時，請重新登入。');
+  }
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(), 20000);
   try {
@@ -723,8 +728,23 @@ async function adminUsersApi(payload) {
       body:JSON.stringify(payload),
       signal:controller.signal
     });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok || data?.error) throw new Error(data?.error || `HTTP ${res.status}`);
+    const text = await res.text();
+    let data = {};
+    if(text){ try{ data=JSON.parse(text); }catch{ data={error:text}; } }
+    const authExpired = res.status===401 || /jwt\s*expired|invalid jwt|token.*expired|unauthorized/i.test(String(data?.error||data?.message||text||''));
+    if(!res.ok && authExpired && retryAuth){
+      clearTimeout(timer);
+      const refreshed = await ensureFreshSession(true);
+      if(refreshed?.access_token) return adminUsersApi(payload,false);
+      await supabase.auth.signOut();
+      showLogin('登入已逾時，請重新登入。');
+      throw new Error('登入已逾時，請重新登入。');
+    }
+    if(!res.ok || data?.error){
+      if(res.status===401) throw new Error('帳號管理授權失敗，請重新登入後再試。');
+      if(res.status===403) throw new Error('目前帳號沒有帳號管理權限。');
+      throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    }
     return data;
   } catch(e) {
     if(e?.name==='AbortError') throw new Error('帳號管理連線逾時。');
