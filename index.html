@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.2</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,7 +61,7 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.2</h1>
+<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.3</h1>
 <p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
@@ -1558,9 +1558,37 @@ function renderPrepayment(start,end){
 function renderPayable(start,end){
   const dispatchRows=allDispatches.filter(d=>d.payment_status!=='paid'&&(!end||d.dispatch_date<=end)).map(d=>({type:'出車',ref:d.dispatch_number,supplier:driverName(d.driver_id)||'-',date:d.dispatch_date,detail:`司機 ${moneyAud(d.driver_cost_aud)}／油錢 ${moneyAud(d.fuel_cost_aud)}／門票 ${moneyAud(d.ticket_cost_aud)}／其他 ${moneyAud(d.other_cost_aud)}`,amount:num(d.total_cost_aud)}));
   const tourRows=allOrderItems.filter(i=>i.cost_payment_status!=='paid'&&num(i.actual_cost_aud)>0&&(!end||i.service_date<=end)).map(i=>{const o=allOrders.find(x=>x.id===i.order_id)||{};return {type:'旅遊項目',ref:o.order_number||i.order_id,supplier:tourAgentName(i.cost_agent_id)||o.agent_name||'-',date:i.service_date,detail:i.trip_detail||tourProductById(i.cost_product_id)?.product_name||'-',amount:num(i.actual_cost_aud)};});
-  const rows=[...dispatchRows,...tourRows].sort((a,b)=>a.date.localeCompare(b.date)); currentReportRows=rows.map(r=>[r.type,r.ref,r.supplier,r.date,r.detail,r.amount]);
+  const rows=[...dispatchRows,...tourRows].sort((a,b)=>a.date.localeCompare(b.date));
   const total=rows.reduce((s,r)=>s+r.amount,0),overdue=rows.filter(r=>r.date<today()).length;
-  return reportTitle('應付帳款報表（AUD）',`截至 ${end||'目前'}；包含出車成本與代理／一日遊項目成本`) + summaryCards([['應付總額',moneyAud(total),'text-red-700'],['未付項目',rows.length,'text-blue-700'],['逾期筆數',overdue,'text-amber-700']]) + simpleTable(['類型','單號','供應商／代理','日期','明細','未付餘額 AUD'],rows.map(r=>[esc(r.type),esc(r.ref),esc(r.supplier),esc(r.date),esc(r.detail),`<b class="text-red-700">${moneyAud(r.amount)}</b>`]));
+
+  const supplierMap=new Map();
+  rows.forEach(r=>{
+    const key=`${r.type}|||${r.supplier||'-'}`;
+    if(!supplierMap.has(key))supplierMap.set(key,{type:r.type,supplier:r.supplier||'-',count:0,overdue:0,amount:0});
+    const g=supplierMap.get(key);
+    g.count+=1;
+    g.amount=round2(g.amount+r.amount);
+    if(r.date<today())g.overdue+=1;
+  });
+  const supplierGroups=[...supplierMap.values()].sort((a,b)=>{
+    if(a.type!==b.type)return a.type==='旅遊項目'?-1:1;
+    return b.amount-a.amount||String(a.supplier).localeCompare(String(b.supplier),'zh-Hant');
+  });
+
+  currentReportRows=rows.map(r=>[r.type,r.ref,r.supplier,r.date,r.detail,r.amount]);
+  const supplierTable=simpleTable(
+    ['類型','代理／供應商','未付筆數','逾期筆數','應付總額 AUD'],
+    supplierGroups.map(g=>[esc(g.type),`<b>${esc(g.supplier)}</b>`,g.count,g.overdue,`<b class="text-red-700">${moneyAud(g.amount)}</b>`])
+  );
+  const detailTable=simpleTable(
+    ['類型','單號','供應商／代理','日期','明細','未付餘額 AUD'],
+    rows.map(r=>[esc(r.type),esc(r.ref),esc(r.supplier),esc(r.date),esc(r.detail),`<b class="text-red-700">${moneyAud(r.amount)}</b>`])
+  );
+
+  return reportTitle('應付帳款報表（AUD）',`截至 ${end||'目前'}；包含出車成本與代理／一日遊項目成本`) +
+    summaryCards([['應付總額',moneyAud(total),'text-red-700'],['未付項目',rows.length,'text-blue-700'],['代理／供應商數',supplierGroups.length,'text-violet-700'],['逾期筆數',overdue,'text-amber-700']]) +
+    `<h3 class="mb-2 font-black">依代理／供應商應付彙總</h3>${supplierTable}`+
+    `<h3 class="mb-2 mt-6 font-black">未付明細</h3>${detailTable}`;
 }
 
 function renderPnl(start,end){
