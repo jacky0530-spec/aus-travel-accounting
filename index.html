@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.4</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V6.0.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -43,7 +43,7 @@
 <div class="w-full max-w-sm rounded-2xl bg-white p-7 shadow-2xl">
 <div class="text-center mb-6">
 <div class="text-4xl">🇦🇺</div>
-<h1 class="text-2xl font-black mt-2">旅遊訂單與會計系統</h1>
+<h1 class="text-2xl font-black mt-2" id="loginSystemTitle">旅遊訂單與會計系統</h1>
 <p class="text-xs text-slate-500 mt-1">訂單、司機名冊、出車單與AUD會計報表分流管理</p>
 </div>
 <div class="space-y-4">
@@ -61,8 +61,8 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black">澳洲旅遊訂單、司機名冊與出車系統 V5.5.3.4</h1>
-<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600">解析器：V5.2.2-cost-match｜帳號：V5.3-admin｜快捷：V5.5</p>
+<h1 class="text-xl font-black" id="mainSystemTitle">澳洲旅遊訂單、司機名冊與出車系統 V6.0.0</h1>
+<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600" id="versionText">Core V6.0.0｜DB 檢查中</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
 
@@ -392,10 +392,26 @@
 </main>
 </div>
 
+<script src="./config.js"></script>
 <script>
-const SUPABASE_URL = "https://ohnedzeglswvrcrzasiq.supabase.co";
-const SUPABASE_KEY = "sb_publishable_F6algA8-eFCJubSGC58pFg_jCbV86Kz";
-const AUTH_STORAGE_KEY = "au_travel_auth_session_v5514";
+const APP_VERSION = '6.0.0';
+const CORE_API_VERSION = '6.0';
+const APP_CONFIG = window.APP_CONFIG || {};
+const SUPABASE_URL = String(APP_CONFIG.supabaseUrl || '').replace(/\/$/, '');
+const SUPABASE_KEY = String(APP_CONFIG.supabaseAnonKey || '');
+const INSTANCE_ID = String(APP_CONFIG.instanceId || '').trim();
+if (!SUPABASE_URL || !SUPABASE_KEY || !INSTANCE_ID) {
+  document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif"><h2>系統設定不完整</h2><p>請先設定 config.js 的 instanceId、supabaseUrl 與 supabaseAnonKey。</p></div>';
+  throw new Error('APP_CONFIG_INCOMPLETE');
+}
+const AUTH_STORAGE_KEY = `travel_auth_${INSTANCE_ID}`;
+const EMAIL_STORAGE_KEY = `travel_email_${INSTANCE_ID}`;
+const LEGACY_AUTH_STORAGE_KEY = String(APP_CONFIG.legacyAuthStorageKey || '');
+if (!localStorage.getItem(AUTH_STORAGE_KEY) && LEGACY_AUTH_STORAGE_KEY && localStorage.getItem(LEGACY_AUTH_STORAGE_KEY)) {
+  localStorage.setItem(AUTH_STORAGE_KEY, localStorage.getItem(LEGACY_AUTH_STORAGE_KEY));
+  localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+}
+const FEATURES = {orders:true,tourCosts:true,drivers:true,dispatch:true,reports:true,finance:true,userManagement:true,...(APP_CONFIG.features||{})};
 const authListeners = new Set();
 const emitAuth = (event, session) => authListeners.forEach(fn => { try { fn(event, session); } catch (e) { console.error(e); } });
 const parseAuthError = async res => { const data = await res.json().catch(()=>({})); const err = new Error(data?.msg || data?.message || data?.error_description || data?.error || `HTTP ${res.status}`); err.status=res.status; return err; };
@@ -477,6 +493,30 @@ let latestAuthIssuedAt = 0;
 let accountingAmountManual = false;
 
 const $ = id => document.getElementById(id);
+const companyName = String(APP_CONFIG.companyName || '旅遊管理系統');
+const systemName = String(APP_CONFIG.systemName || '旅遊訂單、司機名冊與出車系統');
+function applyAppConfig(){
+  document.title = `${companyName}｜${systemName} V${APP_VERSION}`;
+  if($('loginSystemTitle')) $('loginSystemTitle').textContent = `${companyName}｜旅遊訂單與會計系統`;
+  if($('mainSystemTitle')) $('mainSystemTitle').textContent = `${companyName}｜${systemName} V${APP_VERSION}`;
+  const map={tourcosts:'tourCosts',drivers:'drivers',dispatch:'dispatch',reports:'reports',finance:'finance',users:'userManagement'};
+  document.querySelectorAll('.mainTab').forEach(btn=>{const key=map[btn.dataset.tab];if(key && FEATURES[key]===false) btn.classList.add('hidden');});
+}
+function versionParts(v){return String(v||'').split('.').map(x=>Number(x)||0);}
+function isSchemaCompatible(dbVersion){
+  const [a,b]=versionParts(dbVersion), [ea,eb]=versionParts(APP_VERSION);
+  return a===ea && b>=eb;
+}
+async function checkSchemaVersion(){
+  let info;
+  try{ info=await api('/rest/v1/rpc/get_app_schema_version',{method:'POST',body:'{}'}); }
+  catch(e){ throw new Error(`資料庫尚未升級為共用核心版本：${e.message}`); }
+  const dbVersion=info?.version||'';
+  if(!isSchemaCompatible(dbVersion)) throw new Error(`程式版本 V${APP_VERSION} 與資料庫版本 V${dbVersion||'未知'} 不相容，請先執行對應Migration。`);
+  if($('versionText')) $('versionText').textContent=`Core V${APP_VERSION}｜DB V${dbVersion}｜API ${info?.coreApiVersion||CORE_API_VERSION}`;
+  return info;
+}
+applyAppConfig();
 const num = v => Number(v || 0);
 const round2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
 const money = v => `A$${round2(v).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -573,11 +613,12 @@ async function handleSession(session) {
     showLogin('此帳號尚未啟用，請聯絡管理員。');
     return;
   }
+  await checkSchemaVersion();
   $('loginScreen').classList.add('hidden');
   $('app').classList.remove('hidden');
   currentRole = status.role || '';
   $('statusText').textContent = `已登入：${session.user.email}（${status.role}）`;
-  $('adminUsersTab').classList.toggle('hidden', currentRole !== 'admin');
+  $('adminUsersTab').classList.toggle('hidden', currentRole !== 'admin' || FEATURES.userManagement===false);
   await loadAll();
 }
 
@@ -617,7 +658,7 @@ $('loginBtn').addEventListener('click', async()=>{
     const { data, error } = await withTimeout(supabase.auth.signInWithPassword({email,password}),15000,'登入');
     if (error) throw error;
     if (!data?.session) throw new Error('登入成功但未取得Session，請重新整理後再試。');
-    if ($('rememberMe').checked) localStorage.setItem('travelV5Email',email); else localStorage.removeItem('travelV5Email');
+    if ($('rememberMe').checked) localStorage.setItem(EMAIL_STORAGE_KEY,email); else localStorage.removeItem(EMAIL_STORAGE_KEY);
     $('loginError').classList.add('hidden');
     // 直接處理本次登入回傳的Session，避免等待Auth事件時畫面卡住。
     scheduleSession(data.session, 0);
@@ -661,7 +702,7 @@ $('registerBtn').addEventListener('click', async()=>{
 });
 
 $('logoutBtn').addEventListener('click',()=>supabase.auth.signOut());
-window.addEventListener('DOMContentLoaded',()=>{ const email=localStorage.getItem('travelV5Email'); if(email){$('loginEmail').value=email;$('rememberMe').checked=true;} });
+window.addEventListener('DOMContentLoaded',()=>{ const email=localStorage.getItem(EMAIL_STORAGE_KEY); if(email){$('loginEmail').value=email;$('rememberMe').checked=true;} });
 
 
 async function loadAll() {
