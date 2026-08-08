@@ -1,4 +1,4 @@
-// 每家公司唯一需要修改的前端設定。核心 index.html 可直接跨公司複製。
+// 正式系統專用設定。未來更新共用核心時，保留此檔，不要用其他公司的 config.js 覆蓋。
 window.APP_CONFIG = {
   instanceId: 'aus-travel-accounting-prod',
   companyName: '澳洲旅遊',
