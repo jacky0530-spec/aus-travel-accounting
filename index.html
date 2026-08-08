@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V6.0.0</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V6.0.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -61,8 +61,11 @@
 <header class="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
-<h1 class="text-xl font-black" id="mainSystemTitle">澳洲旅遊訂單、司機名冊與出車系統 V6.0.0</h1>
-<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600" id="versionText">Core V6.0.0｜DB 檢查中</p>
+<div class="flex flex-wrap items-center gap-2">
+<h1 class="text-xl font-black" id="mainSystemTitle">澳洲旅遊訂單、司機名冊與出車系統 V6.0.1</h1>
+<button class="no-print rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200" id="editCompanyNameBtn" type="button" title="自訂左上角顯示公司名稱">✎ 公司名稱</button>
+</div>
+<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600" id="versionText">Core V6.0.1｜DB 檢查中</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
 
@@ -394,7 +397,7 @@
 
 <script src="./config.js"></script>
 <script>
-const APP_VERSION = '6.0.0';
+const APP_VERSION = '6.0.1';
 const CORE_API_VERSION = '6.0';
 const APP_CONFIG = window.APP_CONFIG || {};
 const SUPABASE_URL = String(APP_CONFIG.supabaseUrl || '').replace(/\/$/, '');
@@ -493,15 +496,33 @@ let latestAuthIssuedAt = 0;
 let accountingAmountManual = false;
 
 const $ = id => document.getElementById(id);
-const companyName = String(APP_CONFIG.companyName || '旅遊管理系統');
+const defaultCompanyName = String(APP_CONFIG.companyName || '旅遊管理系統').trim() || '旅遊管理系統';
 const systemName = String(APP_CONFIG.systemName || '旅遊訂單、司機名冊與出車系統');
-function applyAppConfig(){
+const COMPANY_NAME_STORAGE_KEY = `travel_display_company_${INSTANCE_ID}`;
+function displayCompanyName(){
+  return (localStorage.getItem(COMPANY_NAME_STORAGE_KEY)||'').trim() || defaultCompanyName;
+}
+function renderBranding(){
+  const companyName=displayCompanyName();
   document.title = `${companyName}｜${systemName} V${APP_VERSION}`;
   if($('loginSystemTitle')) $('loginSystemTitle').textContent = `${companyName}｜旅遊訂單與會計系統`;
   if($('mainSystemTitle')) $('mainSystemTitle').textContent = `${companyName}｜${systemName} V${APP_VERSION}`;
+}
+function applyAppConfig(){
+  renderBranding();
   const map={tourcosts:'tourCosts',drivers:'drivers',dispatch:'dispatch',reports:'reports',finance:'finance',users:'userManagement'};
   document.querySelectorAll('.mainTab').forEach(btn=>{const key=map[btn.dataset.tab];if(key && FEATURES[key]===false) btn.classList.add('hidden');});
 }
+function editDisplayCompanyName(){
+  const current=displayCompanyName();
+  const value=prompt('請輸入左上角要顯示的公司名稱：\n\n留空後按確定，可恢復 config.js 的預設名稱。',current);
+  if(value===null) return;
+  const name=value.trim();
+  if(name) localStorage.setItem(COMPANY_NAME_STORAGE_KEY,name);
+  else localStorage.removeItem(COMPANY_NAME_STORAGE_KEY);
+  renderBranding();
+}
+$('editCompanyNameBtn')?.addEventListener('click',editDisplayCompanyName);
 function versionParts(v){return String(v||'').split('.').map(x=>Number(x)||0);}
 function isSchemaCompatible(dbVersion){
   const [a,b]=versionParts(dbVersion), [ea,eb]=versionParts(APP_VERSION);
