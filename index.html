@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>澳洲旅遊訂單、司機名冊與出車系統 V6.0.2</title>
+<title>澳洲旅遊訂單、司機名冊與出車系統 V6.0.3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -62,10 +62,10 @@
 <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
 <div>
 <div class="flex flex-wrap items-center gap-2">
-<h1 class="text-xl font-black" id="mainSystemTitle">澳洲旅遊訂單、司機名冊與出車系統 V6.0.2</h1>
+<h1 class="text-xl font-black" id="mainSystemTitle">澳洲旅遊訂單、司機名冊與出車系統 V6.0.3</h1>
 <button class="no-print rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200" id="editCompanyNameBtn" type="button" title="自訂左上角顯示公司名稱">✎ 公司名稱</button>
 </div>
-<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600" id="versionText">Core V6.0.2｜DB 檢查中</p>
+<p class="text-xs font-bold text-emerald-600" id="statusText">登入中...</p><p class="text-[10px] font-bold text-blue-600" id="versionText">Core V6.0.3｜DB 檢查中</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
 
@@ -239,7 +239,7 @@
       <input type="hidden" id="tourProductEditId">
       <div><label class="field-label">代理</label><div class="flex gap-2"><select class="field" id="tourProductAgent" required></select><button type="button" id="addAgentBtn" class="shrink-0 rounded-lg bg-slate-100 px-3 text-xs font-bold">＋代理</button></div></div>
       <div><label class="field-label">項目名稱</label><textarea class="field" id="tourProductName" rows="3" required></textarea></div>
-      <div><label class="field-label">分類</label><select class="field" id="tourProductCategory"><option>一日遊</option><option>門票</option><option>接送機</option><option>包車</option><option>其他</option></select></div>
+      <div><label class="field-label">分類</label><select class="field" id="tourProductCategory"><option>一日遊</option><option>多日遊</option><option>門票</option><option>接送機</option><option>包車</option><option>其他</option></select></div>
       <div class="grid grid-cols-3 gap-2"><div><label class="field-label">成人成本</label><input class="field" id="tourAdultCost" type="number" min="0" step="0.01"></div><div><label class="field-label">兒童成本</label><input class="field" id="tourChildCost" type="number" min="0" step="0.01"></div><div><label class="field-label">嬰兒成本</label><input class="field" id="tourInfantCost" type="number" min="0" step="0.01"></div></div>
       <div><label class="field-label">備註</label><input class="field" id="tourProductNote"></div>
       <label class="flex items-center gap-2 text-sm"><input id="tourProductActive" type="checkbox" checked> 啟用</label>
